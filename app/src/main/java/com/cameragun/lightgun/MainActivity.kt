@@ -40,6 +40,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         private const val PREFS_NAME = "cameragun_prefs"
         private const val KEY_PORTRAIT = "pref_is_portrait"
         private const val KEY_PLAYER_2 = "pref_is_player_2"
+        private const val KEY_GYRO_MODE = "pref_is_gyro_mode"
         private const val PREVIEW_WIDTH = 1280
         private const val PREVIEW_HEIGHT = 720
     }
@@ -55,6 +56,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private lateinit var btnRecenter: Button
 
     private var isPlayer2: Boolean = false
+    private var isGyroOnlyMode: Boolean = false
+    private var lastGyroUiUpdateTimestamp: Long = 0
 
     private val nativeBridge = NativeVisionBridge()
     private lateinit var bluetoothTransmitter: BluetoothTransmitter
@@ -81,10 +84,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
         // Read orientation & player role preferences
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val isPortrait = prefs.getBoolean(KEY_PORTRAIT, false)
+        isGyroOnlyMode = prefs.getBoolean(KEY_GYRO_MODE, false)
         isPlayer2 = prefs.getBoolean(KEY_PLAYER_2, false)
 
-        requestedOrientation = if (isPortrait) {
+        requestedOrientation = if (isGyroOnlyMode) {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -102,13 +105,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
-        initViews()
-        updateOrientationUI(isPortrait)
-        updatePlayerRoleUI()
-        setupControllerButtons()
-
         sensorsManager = SensorsManager(this)
         nativeBridge.initVision(1920, 1080)
+
+        initViews()
+        setupControllerButtons()
+        setAppMode(isGyroOnlyMode)
 
         networkTransmitter = NetworkTransmitter(this) { hMin, sMin, vMin, hMax, sMax, vMax, w, h ->
             nativeBridge.updateHsvBoundaries(hMin, sMin, vMin, hMax, sMax, vMax)
@@ -168,22 +170,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             false
         }
 
-        // Orientation toggle button (Landscape <-> Portrait)
+        // Switch to Pure Gyro Mode
         findViewById<Button>(R.id.btnToggleOrientation)?.setOnClickListener {
             vibrateLight()
-            val currentOrientation = resources.configuration.orientation
-            val newIsPortrait = currentOrientation != Configuration.ORIENTATION_PORTRAIT
-            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_PORTRAIT, newIsPortrait).apply()
-            requestedOrientation = if (newIsPortrait) {
-                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            } else {
-                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            }
-            updateOrientationUI(newIsPortrait)
-            textureView.post {
-                configureTransform(textureView.width, textureView.height)
-            }
+            setAppMode(true)
+        }
+
+        // Switch back to Camera Mode
+        findViewById<Button>(R.id.port_btnSwitchToCamera)?.setOnClickListener {
+            vibrateLight()
+            setAppMode(false)
         }
 
         // Color preset quick toggle button (CYAN -> GREEN -> MAGENTA -> WHITE)
@@ -213,19 +209,25 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             btnBorderColor.setTextColor(ContextCompat.getColor(this, colorTextColors[currentColorIndex]))
         }
 
-        // Player Role toggle button (1P <-> 2P)
+        // Player Role toggle button (1P <-> 2P) - Camera Mode
         btnPlayerRole = findViewById(R.id.btnPlayerRole)
         btnPlayerRole.setOnClickListener {
             vibrateLight()
-            isPlayer2 = !isPlayer2
-            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit().putBoolean(KEY_PLAYER_2, isPlayer2).apply()
-            updatePlayerRoleUI()
+            togglePlayerRole()
         }
 
-        // GKHeart RECENTER Button
+        // Player Role toggle button - Pure Gyro Mode
+        findViewById<Button>(R.id.port_btnPlayerRole)?.setOnClickListener {
+            vibrateLight()
+            togglePlayerRole()
+        }
+
+        // GKHeart RECENTER Buttons (Camera & Gyro Mode)
         btnRecenter = findViewById(R.id.btnRecenter)
         btnRecenter.setOnClickListener {
+            doRecenter()
+        }
+        findViewById<Button>(R.id.port_btnRecenter)?.setOnClickListener {
             doRecenter()
         }
 
@@ -234,8 +236,28 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             doRecenter()
         }
 
-        // Wi-Fi Pairing Dialog Button
+        // Aim Orientation Switcher (Remote Top vs Camera Back)
+        val btnAimOri = findViewById<Button>(R.id.port_btnAimOrientation)
+        btnAimOri?.setOnClickListener {
+            vibrateLight()
+            if (sensorsManager.aimOrientation == SensorsManager.AimOrientation.REMOTE_TOP) {
+                sensorsManager.aimOrientation = SensorsManager.AimOrientation.CAMERA_BACK
+                btnAimOri.text = "🎯 PISTOL (KAMERA BELAKANG)"
+                btnAimOri.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            } else {
+                sensorsManager.aimOrientation = SensorsManager.AimOrientation.REMOTE_TOP
+                btnAimOri.text = "🚀 REMOTE (UJUNG ATAS HP)"
+                btnAimOri.setTextColor(ContextCompat.getColor(this, R.color.cyber_cyan))
+            }
+            sensorsManager.setCenter()
+        }
+
+        // Wi-Fi Pairing Dialog Buttons
         findViewById<Button>(R.id.btnWifi)?.setOnClickListener {
+            vibrateLight()
+            showWifiDialog()
+        }
+        findViewById<Button>(R.id.port_btnWifi)?.setOnClickListener {
             vibrateLight()
             showWifiDialog()
         }
@@ -256,6 +278,13 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
     }
 
+    private fun togglePlayerRole() {
+        isPlayer2 = !isPlayer2
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_PLAYER_2, isPlayer2).apply()
+        updatePlayerRoleUI()
+    }
+
     private fun doRecenter() {
         sensorsManager.displayRotation = windowManager.defaultDisplay.rotation
         sensorsManager.setCenter()
@@ -265,10 +294,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
             tvCoords.text = "X: 0.500 | Y: 0.500"
             cornerOverlay.updateAimState(true, 0.5f, 0.5f)
+            updateGyroModeUI(0.5f, 0.5f, true)
         }
     }
 
     private fun updatePlayerRoleUI() {
+        val portRole = findViewById<Button>(R.id.port_btnPlayerRole)
         if (::btnPlayerRole.isInitialized) {
             if (isPlayer2) {
                 btnPlayerRole.text = "🎯 2P"
@@ -278,24 +309,143 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 btnPlayerRole.setTextColor(ContextCompat.getColor(this, R.color.cyber_cyan))
             }
         }
+        if (portRole != null) {
+            if (isPlayer2) {
+                portRole.text = "🎯 2P"
+                portRole.setTextColor(ContextCompat.getColor(this, R.color.cyber_magenta))
+            } else {
+                portRole.text = "🎯 1P"
+                portRole.setTextColor(ContextCompat.getColor(this, R.color.cyber_cyan))
+            }
+        }
         if (::cornerOverlay.isInitialized) {
             cornerOverlay.setPlayerRole(isPlayer2)
         }
     }
 
-    private fun updateOrientationUI(isPortrait: Boolean) {
+    private fun setAppMode(gyroOnly: Boolean) {
+        isGyroOnlyMode = gyroOnly
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_GYRO_MODE, gyroOnly).apply()
+
         val landscapeControls = findViewById<View>(R.id.landscapeControls)
         val portraitControls = findViewById<View>(R.id.portraitControls)
-        val btnToggle = findViewById<Button>(R.id.btnToggleOrientation)
+        val topBar = findViewById<View>(R.id.topBar)
 
-        if (isPortrait) {
+        if (gyroOnly) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+
+            closeCamera()
+            textureView.visibility = View.GONE
+            cornerOverlay.visibility = View.GONE
+            topBar?.visibility = View.GONE
             landscapeControls?.visibility = View.GONE
             portraitControls?.visibility = View.VISIBLE
-            btnToggle?.text = "🖥️ LAND"
+
+            sensorsManager.aimOrientation = SensorsManager.AimOrientation.REMOTE_TOP
+            sensorsManager.onAimUpdate = { normX, normY, isLocked, isReload ->
+                sendTelemetryStream(normX, normY, isLocked, isReload)
+            }
+            updateGyroModeUI(0.5f, 0.5f, sensorsManager.hasCenter)
         } else {
-            landscapeControls?.visibility = View.VISIBLE
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+            sensorsManager.onAimUpdate = null
             portraitControls?.visibility = View.GONE
-            btnToggle?.text = "📱 PORT"
+            textureView.visibility = View.VISIBLE
+            cornerOverlay.visibility = View.VISIBLE
+            topBar?.visibility = View.VISIBLE
+            landscapeControls?.visibility = View.VISIBLE
+
+            sensorsManager.aimOrientation = SensorsManager.AimOrientation.CAMERA_BACK
+            if (textureView.isAvailable && allPermissionsGranted()) {
+                openCamera()
+            }
+        }
+        updatePlayerRoleUI()
+    }
+
+    private fun sendTelemetryStream(normX: Float, normY: Float, isLocked: Boolean, isOffscreenReload: Boolean) {
+        var flags = 0
+        if (isLocked) {
+            flags = flags or (1 shl 0) // LightgunFlags.TRACKING_LOCKED
+        }
+        if (isOffscreenReload) {
+            flags = flags or (1 shl 1) // LightgunFlags.OFFSCREEN_RELOAD
+        }
+        if (isPlayer2) {
+            flags = flags or (1 shl 3) // LightgunFlags.PLAYER_2
+        }
+
+        val confidence = if (isLocked) 100 else 0
+        val currentButtons = buttonMask.get()
+        val pitch = sensorsManager.pitch
+        val roll = sensorsManager.roll
+        val timestampMs = (SystemClock.elapsedRealtime() and 0xFFFF).toInt()
+
+        if (networkTransmitter.isConnected) {
+            networkTransmitter.sendTelemetry(
+                normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
+            )
+        }
+        if (bluetoothTransmitter.isClientConnected) {
+            bluetoothTransmitter.sendTelemetry(
+                normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
+            )
+        }
+
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastGyroUiUpdateTimestamp >= 40) {
+            lastGyroUiUpdateTimestamp = now
+            runOnUiThread {
+                updateGyroModeUI(normX, normY, isLocked)
+            }
+        }
+    }
+
+    private fun updateGyroModeUI(normX: Float, normY: Float, isLocked: Boolean) {
+        val tvCoords = findViewById<TextView>(R.id.port_tvCoords)
+        val tvStatus = findViewById<TextView>(R.id.port_tvTrackingStatus)
+        val tvBt = findViewById<TextView>(R.id.port_tvBtStatus)
+        val dotBt = findViewById<View>(R.id.port_dotBt)
+
+        tvCoords?.text = String.format("X: %.3f | Y: %.3f", normX, normY)
+        if (isLocked) {
+            tvStatus?.text = "● 100Hz LOCKED"
+            tvStatus?.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+        } else {
+            tvStatus?.text = "AIM & RECENTER"
+            tvStatus?.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
+        }
+
+        val isConnected = networkTransmitter.isConnected || bluetoothTransmitter.isClientConnected
+        if (isConnected) {
+            tvBt?.text = if (networkTransmitter.isConnected) "WI-FI: OK" else "BT: OK"
+            tvBt?.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            val dotDrawable = dotBt?.background
+            if (dotDrawable is GradientDrawable) {
+                dotDrawable.setColor(ContextCompat.getColor(this, R.color.cyber_green))
+            }
+        } else {
+            tvBt?.text = "OFFLINE"
+            tvBt?.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
+            val dotDrawable = dotBt?.background
+            if (dotDrawable is GradientDrawable) {
+                dotDrawable.setColor(ContextCompat.getColor(this, R.color.cyber_orange))
+            }
+        }
+    }
+
+    private fun closeCamera() {
+        try {
+            captureSession?.close()
+            captureSession = null
+            cameraDevice?.close()
+            cameraDevice = null
+            imageReader?.close()
+            imageReader = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error closing camera: ${e.message}")
         }
     }
 
@@ -434,7 +584,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
         configureTransform(width, height)
-        if (allPermissionsGranted()) openCamera()
+        if (allPermissionsGranted() && !isGyroOnlyMode) openCamera()
     }
 
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
@@ -446,10 +596,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
-        updateOrientationUI(isPortrait)
-        textureView.post {
-            configureTransform(textureView.width, textureView.height)
+        if (!isGyroOnlyMode) {
+            textureView.post {
+                configureTransform(textureView.width, textureView.height)
+            }
         }
     }
 

@@ -9,6 +9,11 @@ import android.view.Surface
 
 class SensorsManager(context: Context) : SensorEventListener {
 
+    enum class AimOrientation {
+        REMOTE_TOP,     // Moncong atas HP (+Y) dalam posisi tidur/datar (seperti remote / GKHeart)
+        CAMERA_BACK     // Moncong kamera belakang (-Z) dalam posisi tegak
+    }
+
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         ?: sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -52,8 +57,14 @@ class SensorsManager(context: Context) : SensorEventListener {
     var sensitivityX: Float = 1.0f
     var sensitivityY: Float = 1.0f
 
+    // Current Aim Orientation (Remote Top vs Camera Back)
+    var aimOrientation: AimOrientation = AimOrientation.CAMERA_BACK
+
     // Current Display Rotation
     @Volatile var displayRotation: Int = Surface.ROTATION_90
+
+    // Callback for 100Hz gyro updates in Pure Gyro Mode
+    var onAimUpdate: ((normX: Float, normY: Float, isLocked: Boolean, isReload: Boolean) -> Unit)? = null
 
     private val rotationMatrix = FloatArray(9)
     private val orientationAngles = FloatArray(3)
@@ -85,52 +96,69 @@ class SensorsManager(context: Context) : SensorEventListener {
             return
         }
 
-        // Vektor arah kamera belakang smartphone (-Z dari device frame) dalam world frame:
-        centerForward[0] = -rotationMatrix[2]
-        centerForward[1] = -rotationMatrix[5]
-        centerForward[2] = -rotationMatrix[8]
+        if (aimOrientation == AimOrientation.REMOTE_TOP) {
+            // Mode Remote / Posisi Tidur: moncong HP mengarah dari ujung atas HP (+Y)
+            centerForward[0] = rotationMatrix[1]
+            centerForward[1] = rotationMatrix[4]
+            centerForward[2] = rotationMatrix[7]
 
-        // Vektor Screen Right dan Screen Up sesuai orientasi rotasi HP:
-        when (displayRotation) {
-            Surface.ROTATION_90 -> {
-                // Landscape (Port USB di kanan, kamera di kiri-atas)
-                // Screen Right = -Hardware_Y; Screen Up = +Hardware_X
-                centerRight[0] = -rotationMatrix[1]
-                centerRight[1] = -rotationMatrix[4]
-                centerRight[2] = -rotationMatrix[7]
+            // Screen Right = +Hardware_X
+            centerRight[0] = rotationMatrix[0]
+            centerRight[1] = rotationMatrix[3]
+            centerRight[2] = rotationMatrix[6]
 
-                centerUp[0]    =  rotationMatrix[0]
-                centerUp[1]    =  rotationMatrix[3]
-                centerUp[2]    =  rotationMatrix[6]
-            }
-            Surface.ROTATION_270 -> {
-                // Reverse Landscape (Port USB di kiri)
-                // Screen Right = +Hardware_Y; Screen Up = -Hardware_X
-                centerRight[0] =  rotationMatrix[1]
-                centerRight[1] =  rotationMatrix[4]
-                centerRight[2] =  rotationMatrix[7]
+            // Screen Up = +Hardware_Z (menghadap ke atas/pemain)
+            centerUp[0] = rotationMatrix[2]
+            centerUp[1] = rotationMatrix[5]
+            centerUp[2] = rotationMatrix[8]
+        } else {
+            // Mode Kamera / Pistol: moncong kamera belakang (-Z dari device frame) dalam world frame:
+            centerForward[0] = -rotationMatrix[2]
+            centerForward[1] = -rotationMatrix[5]
+            centerForward[2] = -rotationMatrix[8]
 
-                centerUp[0]    = -rotationMatrix[0]
-                centerUp[1]    = -rotationMatrix[3]
-                centerUp[2]    = -rotationMatrix[6]
-            }
-            Surface.ROTATION_180 -> {
-                centerRight[0] = -rotationMatrix[0]
-                centerRight[1] = -rotationMatrix[3]
-                centerRight[2] = -rotationMatrix[6]
+            // Vektor Screen Right dan Screen Up sesuai orientasi rotasi HP:
+            when (displayRotation) {
+                Surface.ROTATION_90 -> {
+                    // Landscape (Port USB di kanan, kamera di kiri-atas)
+                    // Screen Right = -Hardware_Y; Screen Up = +Hardware_X
+                    centerRight[0] = -rotationMatrix[1]
+                    centerRight[1] = -rotationMatrix[4]
+                    centerRight[2] = -rotationMatrix[7]
 
-                centerUp[0]    = -rotationMatrix[1]
-                centerUp[1]    = -rotationMatrix[4]
-                centerUp[2]    = -rotationMatrix[7]
-            }
-            else -> { // Surface.ROTATION_0 (Portrait)
-                centerRight[0] =  rotationMatrix[0]
-                centerRight[1] =  rotationMatrix[3]
-                centerRight[2] =  rotationMatrix[6]
+                    centerUp[0]    =  rotationMatrix[0]
+                    centerUp[1]    =  rotationMatrix[3]
+                    centerUp[2]    =  rotationMatrix[6]
+                }
+                Surface.ROTATION_270 -> {
+                    // Reverse Landscape (Port USB di kiri)
+                    // Screen Right = +Hardware_Y; Screen Up = -Hardware_X
+                    centerRight[0] =  rotationMatrix[1]
+                    centerRight[1] =  rotationMatrix[4]
+                    centerRight[2] =  rotationMatrix[7]
 
-                centerUp[0]    =  rotationMatrix[1]
-                centerUp[1]    =  rotationMatrix[4]
-                centerUp[2]    =  rotationMatrix[7]
+                    centerUp[0]    = -rotationMatrix[0]
+                    centerUp[1]    = -rotationMatrix[3]
+                    centerUp[2]    = -rotationMatrix[6]
+                }
+                Surface.ROTATION_180 -> {
+                    centerRight[0] = -rotationMatrix[0]
+                    centerRight[1] = -rotationMatrix[3]
+                    centerRight[2] = -rotationMatrix[6]
+
+                    centerUp[0]    = -rotationMatrix[1]
+                    centerUp[1]    = -rotationMatrix[4]
+                    centerUp[2]    = -rotationMatrix[7]
+                }
+                else -> { // Surface.ROTATION_0 (Portrait)
+                    centerRight[0] =  rotationMatrix[0]
+                    centerRight[1] =  rotationMatrix[3]
+                    centerRight[2] =  rotationMatrix[6]
+
+                    centerUp[0]    =  rotationMatrix[1]
+                    centerUp[1]    =  rotationMatrix[4]
+                    centerUp[2]    =  rotationMatrix[7]
+                }
             }
         }
 
@@ -169,7 +197,7 @@ class SensorsManager(context: Context) : SensorEventListener {
     /**
      * Menghitung koordinat kursor monitor (0.0 s/d 1.0) berbasis 3D Vector Geometry.
      * Menggunakan Filter GKHeart (Deadzone + EMA Smoothing) sehingga kursor diam tenang di tengah
-     * dan bergerak akurat mengikuti moncong kamera HP.
+     * dan bergerak akurat mengikuti moncong HP.
      */
     @Synchronized
     fun computeAimCoordinates(): Pair<Float, Float> {
@@ -177,10 +205,19 @@ class SensorsManager(context: Context) : SensorEventListener {
             return Pair(0.5f, 0.5f)
         }
 
-        // Vektor arah moncong kamera belakang saat ini (-Z)
-        val curForwardX = -rotationMatrix[2]
-        val curForwardY = -rotationMatrix[5]
-        val curForwardZ = -rotationMatrix[8]
+        val curForwardX: Float
+        val curForwardY: Float
+        val curForwardZ: Float
+
+        if (aimOrientation == AimOrientation.REMOTE_TOP) {
+            curForwardX = rotationMatrix[1]
+            curForwardY = rotationMatrix[4]
+            curForwardZ = rotationMatrix[7]
+        } else {
+            curForwardX = -rotationMatrix[2]
+            curForwardY = -rotationMatrix[5]
+            curForwardZ = -rotationMatrix[8]
+        }
 
         // Proyeksi ke kerangka acuan kalibrasi center (Dot Products)
         val dx = curForwardX * centerRight[0] + curForwardY * centerRight[1] + curForwardZ * centerRight[2]
@@ -233,9 +270,20 @@ class SensorsManager(context: Context) : SensorEventListener {
      */
     fun isOffscreenReload(): Boolean {
         if (!hasCenter) return false
-        val curForwardX = -rotationMatrix[2]
-        val curForwardY = -rotationMatrix[5]
-        val curForwardZ = -rotationMatrix[8]
+        val curForwardX: Float
+        val curForwardY: Float
+        val curForwardZ: Float
+
+        if (aimOrientation == AimOrientation.REMOTE_TOP) {
+            curForwardX = rotationMatrix[1]
+            curForwardY = rotationMatrix[4]
+            curForwardZ = rotationMatrix[7]
+        } else {
+            curForwardX = -rotationMatrix[2]
+            curForwardY = -rotationMatrix[5]
+            curForwardZ = -rotationMatrix[8]
+        }
+
         val dy = curForwardX * centerUp[0] + curForwardY * centerUp[1] + curForwardZ * centerUp[2]
         val dz = curForwardX * centerForward[0] + curForwardY * centerForward[1] + curForwardZ * centerForward[2]
         val angleYDeg = Math.toDegrees(Math.atan2(dy.toDouble(), dz.toDouble())).toFloat()
@@ -253,6 +301,12 @@ class SensorsManager(context: Context) : SensorEventListener {
                 yaw = (orientationAngles[0] * radToDeg * 100).toInt().coerceIn(-32768, 32767).toShort()
                 pitch = (orientationAngles[1] * radToDeg * 100).toInt().coerceIn(-32768, 32767).toShort()
                 roll = (orientationAngles[2] * radToDeg * 100).toInt().coerceIn(-32768, 32767).toShort()
+
+                // Streaming 100Hz realtime jika listener terpasang (Pure Gyro Mode)
+                onAimUpdate?.let { callback ->
+                    val (normX, normY) = computeAimCoordinates()
+                    callback(normX, normY, hasCenter, isOffscreenReload())
+                }
             }
             Sensor.TYPE_GYROSCOPE -> {
                 if (lastGyroTimestamp != 0L) {
