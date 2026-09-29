@@ -120,6 +120,22 @@
             android:layout_marginHorizontal="4dp"
             android:background="@color/cyber_border" />
 
+        <!-- GKHeart RECENTER Button -->
+        <Button
+            android:id="@+id/btnRecenter"
+            android:layout_width="wrap_content"
+            android:layout_height="26dp"
+            android:background="@drawable/btn_cyber_menu"
+            android:paddingHorizontal="8dp"
+            android:text="🎯 RECENTER"
+            android:textColor="@color/cyber_green"
+            android:textSize="8sp"
+            android:textStyle="bold" />
+
+        <View android:layout_width="1dp" android:layout_height="14dp"
+            android:layout_marginHorizontal="4dp"
+            android:background="@color/cyber_border" />
+
         <!-- Wi-Fi Connect Button -->
         <Button
             android:id="@+id/btnWifi"

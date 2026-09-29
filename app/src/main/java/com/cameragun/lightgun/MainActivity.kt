@@ -52,6 +52,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private lateinit var tvFps: TextView
     private lateinit var dotBt: View
     private lateinit var btnPlayerRole: Button
+    private lateinit var btnRecenter: Button
 
     private var isPlayer2: Boolean = false
 
@@ -222,6 +223,17 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             updatePlayerRoleUI()
         }
 
+        // GKHeart RECENTER Button
+        btnRecenter = findViewById(R.id.btnRecenter)
+        btnRecenter.setOnClickListener {
+            doRecenter()
+        }
+
+        // Tap Center Aim Box to RECENTER
+        cornerOverlay.onRecenterRequested = {
+            doRecenter()
+        }
+
         // Wi-Fi Pairing Dialog Button
         findViewById<Button>(R.id.btnWifi)?.setOnClickListener {
             vibrateLight()
@@ -241,6 +253,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         findViewById<Button>(R.id.btnGotIt)?.setOnClickListener {
             vibrateLight()
             layoutTutorial?.visibility = View.GONE
+        }
+    }
+
+    private fun doRecenter() {
+        sensorsManager.setCenter()
+        vibrateHeavy()
+        runOnUiThread {
+            tvTrackingStatus.text = "● GYRO LOCKED"
+            tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            cornerOverlay.updateAimState(true, 0.5f, 0.5f)
         }
     }
 
@@ -555,46 +577,25 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     private fun processCameraFrame(image: Image) {
-        val width = image.width
-        val height = image.height
-        val totalNv21Bytes = width * height * 3 / 2
-
-        if (nv21Buffer == null || nv21Buffer!!.size != totalNv21Bytes) {
-            nv21Buffer = ByteArray(totalNv21Bytes)
-        }
-        val buffer = nv21Buffer!!
-        yuv420ToNv21(image, buffer)
-
-        val timestampSec = (SystemClock.elapsedRealtimeNanos() / 1_000_000_000.0).toFloat()
         val rotation = windowManager.defaultDisplay.rotation
-        val rotationDegrees = when (rotation) {
-            Surface.ROTATION_90 -> 90
-            Surface.ROTATION_180 -> 180
-            Surface.ROTATION_270 -> 270
-            else -> 0
-        }
-        val isLocked = nativeBridge.processFrameNV21(
-            buffer, width, height, timestampSec, rotationDegrees, visionResults, visionCorners
-        )
+        sensorsManager.displayRotation = rotation
 
-        val normX: Float
-        val normY: Float
+        val (normX, normY) = sensorsManager.computeAimCoordinates()
+        val isLocked = sensorsManager.hasCenter
+        val isOffscreenReload = sensorsManager.isOffscreenReload()
 
+        var flags = 0
         if (isLocked) {
-            normX = visionResults[0]
-            normY = visionResults[1]
-        } else {
-            // Gyroscope Hybrid Dead-Reckoning:
-            // Saat kamera kehilangan border layar sesaat, gunakan delta gyro agar bidikan tetap mengalir mulus
-            normX = (visionResults[0] + sensorsManager.gyroDeltaX * 0.35f).coerceIn(0f, 1f)
-            normY = (visionResults[1] - sensorsManager.gyroDeltaY * 0.35f).coerceIn(0f, 1f)
+            flags = flags or (1 shl 0) // LightgunFlags.TRACKING_LOCKED
         }
-
-        var flags = visionResults[2].toInt()
+        if (isOffscreenReload) {
+            flags = flags or (1 shl 1) // LightgunFlags.OFFSCREEN_RELOAD
+        }
         if (isPlayer2) {
             flags = flags or (1 shl 3) // LightgunFlags.PLAYER_2
         }
-        val confidence = visionResults[3].toInt()
+
+        val confidence = if (isLocked) 100 else 0
         val currentButtons = buttonMask.get()
         val pitch = sensorsManager.pitch
         val roll = sensorsManager.roll
@@ -628,12 +629,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
 
         runOnUiThread {
-            cornerOverlay.updateCorners(visionCorners, isLocked)
+            cornerOverlay.updateAimState(isLocked, normX, normY)
             if (isLocked) {
-                tvTrackingStatus.text = getString(R.string.tracking_locked)
+                tvTrackingStatus.text = "● GYRO LOCKED"
                 tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
             } else {
-                tvTrackingStatus.text = getString(R.string.tracking_lost)
+                tvTrackingStatus.text = "AIM & RECENTER"
                 tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
             }
             tvCoords.text = String.format("X: %.3f | Y: %.3f", normX, normY)

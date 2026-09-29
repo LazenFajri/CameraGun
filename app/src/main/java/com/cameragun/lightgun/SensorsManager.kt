@@ -5,17 +5,25 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import kotlin.math.atan2
-import kotlin.math.sqrt
+import android.view.Surface
 
 class SensorsManager(context: Context) : SensorEventListener {
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val rotationVector = sensorManager.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         ?: sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+    private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
+    // Current Raw Angles (Degrees)
+    @Volatile var rawYawDeg: Float = 0f
+        private set
+    @Volatile var rawPitchDeg: Float = 0f
+        private set
+    @Volatile var rawRollDeg: Float = 0f
+        private set
+
+    // Legacy short values for backward-compatible telemetry packets
     @Volatile var pitch: Short = 0
         private set
     @Volatile var roll: Short = 0
@@ -23,13 +31,29 @@ class SensorsManager(context: Context) : SensorEventListener {
     @Volatile var yaw: Short = 0
         private set
 
+    // Gyro Delta for dead-reckoning
     @Volatile var gyroDeltaX: Float = 0f
         private set
     @Volatile var gyroDeltaY: Float = 0f
         private set
 
-    private val gravity = FloatArray(3)
+    // Center Reference (Calibrated Aiming like GKHeart)
+    @Volatile var hasCenter: Boolean = false
+        private set
+    @Volatile var centerYaw: Float = 0f
+        private set
+    @Volatile var centerPitch: Float = 0f
+        private set
+
+    // Aiming Sensitivity (Default: 1.0f)
+    var sensitivityX: Float = 1.0f
+    var sensitivityY: Float = 1.0f
+
+    // Current Display Rotation
+    @Volatile var displayRotation: Int = Surface.ROTATION_90
+
     private val rotationMatrix = FloatArray(9)
+    private val remappedMatrix = FloatArray(9)
     private val orientationAngles = FloatArray(3)
     private var lastGyroTimestamp: Long = 0
 
@@ -49,47 +73,132 @@ class SensorsManager(context: Context) : SensorEventListener {
         sensorManager.unregisterListener(this)
     }
 
+    /**
+     * Kunci posisi tengah monitor (GKHeart RECENTER)
+     */
+    fun setCenter() {
+        centerYaw = rawYawDeg
+        centerPitch = rawPitchDeg
+        hasCenter = true
+    }
+
+    fun resetCenter() {
+        hasCenter = false
+    }
+
+    /**
+     * Menghitung selisih sudut terpendek (-180° s/d +180°)
+     */
+    fun angleDeltaDegrees(current: Float, center: Float): Float {
+        var diff = (current - center) % 360f
+        if (diff > 180f) diff -= 360f
+        if (diff < -180f) diff += 360f
+        return diff
+    }
+
+    /**
+     * Menghitung koordinat kursor monitor (0.0 s/d 1.0) berbasis Gyroscope 100Hz
+     * Menggunakan Sweep Angle ergonomis monitor (horizontal ~30°, vertikal ~18°)
+     */
+    fun computeAimCoordinates(): Pair<Float, Float> {
+        if (!hasCenter) {
+            return Pair(0.5f, 0.5f)
+        }
+
+        val deltaYaw = angleDeltaDegrees(rawYawDeg, centerYaw)
+        val deltaPitch = angleDeltaDegrees(rawPitchDeg, centerPitch)
+
+        // Rentang sudut pandang monitor tipikal pada jarak duduk / berdiri (16:9):
+        // Horizontal: ~30° total sweep (-15° s/d +15°)
+        // Vertikal:   ~18° total sweep (-9° s/d +9°)
+        val sweepH = 30.0f / sensitivityX.coerceAtLeast(0.2f)
+        val sweepV = 18.0f / sensitivityY.coerceAtLeast(0.2f)
+
+        var u = 0.5f + (deltaYaw / sweepH)
+        var v = 0.5f - (deltaPitch / sweepV)
+
+        // Micro-deadzone untuk stabilitas kursor saat tangan diam
+        val du = u - 0.5f
+        val dv = v - 0.5f
+        if (Math.hypot(du.toDouble(), dv.toDouble()) < 0.002) {
+            u = 0.5f
+            v = 0.5f
+        }
+
+        // Clamp bersih 0.0 - 1.0
+        val normX = u.coerceIn(0.0f, 1.0f)
+        val normY = v.coerceIn(0.0f, 1.0f)
+
+        return Pair(normX, normY)
+    }
+
+    /**
+     * Deteksi Off-Screen Reload otomatis (saat moncong diarahkan ke bawah luar layar)
+     */
+    fun isOffscreenReload(): Boolean {
+        if (!hasCenter) return false
+        val deltaPitch = angleDeltaDegrees(rawPitchDeg, centerPitch)
+        return deltaPitch < -20.0f
+    }
+
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
             Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> {
                 SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-                SensorManager.getOrientation(rotationMatrix, orientationAngles)
 
-                val radToDeg = 180.0 / Math.PI
-                val calcYaw = (orientationAngles[0] * radToDeg).toFloat()
-                val calcPitch = (orientationAngles[1] * radToDeg).toFloat()
-                val calcRoll = (orientationAngles[2] * radToDeg).toFloat()
+                // Remap koordinat sistem berdasarkan orientasi layar HP (Landscape / Portrait)
+                when (displayRotation) {
+                    Surface.ROTATION_90 -> {
+                        SensorManager.remapCoordinateSystem(
+                            rotationMatrix,
+                            SensorManager.AXIS_Y,
+                            SensorManager.AXIS_MINUS_X,
+                            remappedMatrix
+                        )
+                    }
+                    Surface.ROTATION_270 -> {
+                        SensorManager.remapCoordinateSystem(
+                            rotationMatrix,
+                            SensorManager.AXIS_MINUS_Y,
+                            SensorManager.AXIS_X,
+                            remappedMatrix
+                        )
+                    }
+                    Surface.ROTATION_180 -> {
+                        SensorManager.remapCoordinateSystem(
+                            rotationMatrix,
+                            SensorManager.AXIS_MINUS_X,
+                            SensorManager.AXIS_MINUS_Y,
+                            remappedMatrix
+                        )
+                    }
+                    else -> { // Surface.ROTATION_0 (Portrait)
+                        System.arraycopy(rotationMatrix, 0, remappedMatrix, 0, 9)
+                    }
+                }
 
-                yaw = (calcYaw * 100).toInt().coerceIn(-32768, 32767).toShort()
-                pitch = (calcPitch * 100).toInt().coerceIn(-32768, 32767).toShort()
-                roll = (calcRoll * 100).toInt().coerceIn(-32768, 32767).toShort()
+                SensorManager.getOrientation(remappedMatrix, orientationAngles)
+
+                val radToDeg = (180.0 / Math.PI).toFloat()
+                val curYaw = orientationAngles[0] * radToDeg
+                val curPitch = orientationAngles[1] * radToDeg
+                val curRoll = orientationAngles[2] * radToDeg
+
+                rawYawDeg = curYaw
+                rawPitchDeg = curPitch
+                rawRollDeg = curRoll
+
+                yaw = (curYaw * 100).toInt().coerceIn(-32768, 32767).toShort()
+                pitch = (curPitch * 100).toInt().coerceIn(-32768, 32767).toShort()
+                roll = (curRoll * 100).toInt().coerceIn(-32768, 32767).toShort()
             }
             Sensor.TYPE_GYROSCOPE -> {
                 if (lastGyroTimestamp != 0L) {
                     val dt = (event.timestamp - lastGyroTimestamp) * 1.0e-9f
-                    // event.values[0] = x (pitch rate), event.values[1] = y (roll rate), event.values[2] = z (yaw rate)
                     gyroDeltaX = event.values[2] * dt
                     gyroDeltaY = event.values[0] * dt
                 }
                 lastGyroTimestamp = event.timestamp
-            }
-            Sensor.TYPE_ACCELEROMETER -> {
-                if (rotationVector == null) {
-                    val alpha = 0.8f
-                    gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0]
-                    gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1]
-                    gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2]
-
-                    val ax = gravity[0]
-                    val ay = gravity[1]
-                    val az = gravity[2]
-
-                    val calcPitch = (atan2(ay.toDouble(), sqrt((ax * ax + az * az).toDouble())) * (180.0 / Math.PI)).toFloat()
-                    val calcRoll = (atan2(-ax.toDouble(), az.toDouble()) * (180.0 / Math.PI)).toFloat()
-
-                    pitch = (calcPitch * 100).toInt().coerceIn(-32768, 32767).toShort()
-                    roll = (calcRoll * 100).toInt().coerceIn(-32768, 32767).toShort()
-                }
             }
         }
     }
