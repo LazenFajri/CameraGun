@@ -1,0 +1,101 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'app/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '.github/workflows/build-android.yml'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Android Native APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android SDK & NDK
+        run: |
+          echo "Memverifikasi NDK dan CMake terpasang..."
+          # Pastikan NDK 25.2.9519653 dan CMake 3.22.1 terpasang
+          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.2.9519653" "cmake;3.22.1"
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: Cache OpenCV Android SDK
+        id: cache-opencv
+        uses: actions/cache@v4
+        with:
+          path: OpenCV-android-sdk
+          key: opencv-android-sdk-4.9.0
+
+      - name: Download & Extract OpenCV Android SDK
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          echo "Mengunduh OpenCV Android SDK 4.9.0..."
+          curl -L -s https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-android-sdk.zip -o opencv.zip
+          unzip -q opencv.zip
+          rm opencv.zip
+          echo "OpenCV Android SDK berhasil diekstrak."
+
+      - name: Set OpenCV Environment Variable
+        run: |
+          OPENCV_JNI_PATH="${{ github.workspace }}/OpenCV-android-sdk/sdk/native/jni"
+          echo "OpenCV JNI Path: $OPENCV_JNI_PATH"
+          echo "OpenCV_DIR=$OPENCV_JNI_PATH" >> $GITHUB_ENV
+
+      - name: Prepare Gradle Wrapper
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Membuat Gradle Wrapper JAR..."
+            gradle wrapper --gradle-version 8.2
+          fi
+          chmod +x gradlew
+
+      - name: Build Android Release APK
+        env:
+          OpenCV_DIR: ${{ github.workspace }}/OpenCV-android-sdk/sdk/native/jni
+        run: |
+          ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Prepare APK Artifact Name
+        id: apk-name
+        run: |
+          APK_FILE=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "Error: File APK release tidak ditemukan!"
+            exit 1
+          fi
+          cp "$APK_FILE" app/build/outputs/apk/release/CameraGun-Release.apk
+          echo "apk_path=app/build/outputs/apk/release/CameraGun-Release.apk" >> $GITHUB_OUTPUT
+
+      - name: Upload Android APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: CameraGun-Android-APK
+          path: ${{ steps.apk-name.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="ps_blue">#003791</color>
+    <color name="ps_cross">#5879DA</color>
+    <color name="ps_circle">#E45355</color>
+    <color name="ps_square">#E0528B</color>
+    <color name="ps_triangle">#36B88A</color>
+    <color name="arcade_trigger">#FF2A2A</color>
+    <color name="arcade_reload">#FF9900</color>
+    <color name="hud_glass">#88111625</color>
+    <color name="hud_border">#00FF66</color>
+    <color name="neon_green">#00FF66</color>
+</resources>

@@ -1,0 +1,229 @@
+name: Unified Release (Android & Windows)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag versi rilis (contoh: v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  # ==============================================================
+  # JOB 1: BUILD ANDROID APK
+  # ==============================================================
+  build-android:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android NDK & CMake
+        run: |
+          ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.2.9519653" "cmake;3.22.1"
+          echo "ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/ndk/25.2.9519653" >> $GITHUB_ENV
+
+      - name: Cache OpenCV Android SDK
+        id: cache-opencv
+        uses: actions/cache@v4
+        with:
+          path: OpenCV-android-sdk
+          key: opencv-android-sdk-4.9.0
+
+      - name: Download & Extract OpenCV Android SDK
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          curl -L -s https://github.com/opencv/opencv/releases/download/4.9.0/opencv-4.9.0-android-sdk.zip -o opencv.zip
+          unzip -q opencv.zip
+          rm opencv.zip
+
+      - name: Set OpenCV Environment Variable
+        run: |
+          echo "OpenCV_DIR=${{ github.workspace }}/OpenCV-android-sdk/sdk/native/jni" >> $GITHUB_ENV
+
+      - name: Prepare Gradle Wrapper
+        run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            gradle wrapper --gradle-version 8.2
+          fi
+          chmod +x gradlew
+
+      - name: Build Android Release APK
+        env:
+          OpenCV_DIR: ${{ github.workspace }}/OpenCV-android-sdk/sdk/native/jni
+        run: |
+          ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Package Android Artifact
+        id: prepare-apk
+        run: |
+          VERSION_TAG="${{ github.ref_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION_TAG="${{ inputs.tag_name }}"
+          fi
+
+          APK_SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          TARGET_NAME="CameraGun-Android-${VERSION_TAG}.apk"
+          cp "$APK_SRC" "$TARGET_NAME"
+          echo "apk_filename=$TARGET_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload Android Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: ${{ steps.prepare-apk.outputs.apk_filename }}
+          retention-days: 1
+
+  # ==============================================================
+  # JOB 2: BUILD WINDOWS PC SERVER
+  # ==============================================================
+  build-windows:
+    name: Build Windows PC Server (.exe)
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Cache NuGet Packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('PC_Server/PC_Server.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore Dependencies
+        run: |
+          dotnet restore PC_Server/PC_Server.csproj
+
+      - name: Publish Single-File Executable
+        run: |
+          dotnet publish PC_Server/PC_Server.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o PC_Server/publish
+
+      - name: Package Windows Artifact
+        id: prepare-zip
+        shell: pwsh
+        run: |
+          $VersionTag = "${{ github.ref_name }}"
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $VersionTag = "${{ inputs.tag_name }}"
+          }
+
+          Copy-Item README.md -Destination PC_Server/publish/README.txt -ErrorAction SilentlyContinue
+          $ZipName = "CameraGun-PC-Server-win-x64-$VersionTag.zip"
+          Compress-Archive -Path PC_Server/publish/* -DestinationPath $ZipName -Force
+          Write-Host "zip_filename=$ZipName" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Windows Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-zip
+          path: CameraGun-PC-Server-win-x64-*.zip
+          retention-days: 1
+
+  # ==============================================================
+  # JOB 3: CREATE GITHUB RELEASE & ATTACH ASSETS
+  # ==============================================================
+  create-release:
+    name: Publish GitHub Release
+    needs: [ build-android, build-windows ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Download Android Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release-apk
+          path: release-assets/
+
+      - name: Download Windows Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release-zip
+          path: release-assets/
+
+      - name: Generate Checksums
+        working-directory: release-assets
+        run: |
+          sha256sum * > SHA256SUMS.txt
+          echo "Daftar Hash SHA256:"
+          cat SHA256SUMS.txt
+
+      - name: Determine Release Tag
+        id: release-info
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag_name }}"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release-info.outputs.tag }}
+          name: "Release ${{ steps.release-info.outputs.tag }} - CameraGun AI Lightgun"
+          draft: false
+          prerelease: false
+          files: |
+            release-assets/*.apk
+            release-assets/*.zip
+            release-assets/SHA256SUMS.txt
+          body: |
+            ## 🎮 CameraGun AI Controller - ${{ steps.release-info.outputs.tag }}
+            
+            Sistem Lightgun nirkabel presisi tinggi berlatensi ultra-rendah (<10ms) berbasis kamera smartphone Android dan Bluetooth Low Energy (BLE) / RFCOMM untuk PC Windows.
+
+            ---
+
+            ### 📦 Aset Rilis Siap Pakai:
+            - **Android APK**: `CameraGun-Android-${{ steps.release-info.outputs.tag }}.apk` (Install di smartphone Android).
+            - **Windows PC Server**: `CameraGun-PC-Server-win-x64-${{ steps.release-info.outputs.tag }}.zip` (Ekstrak dan jalankan `PC_Server.exe` pada Windows 10/11 x64).
+            - **SHA256SUMS.txt**: Verifikasi integritas file biner.
+
+            ---
+
+            ### 🚀 Fitur Unggulan Versi Ini:
+            1. **Dynamic Screen Border**: Border layar transparan Direct2D/Win32 dengan warna yang dapat diatur bebas (Neon Green, Electric Cyan, Vivid Magenta, Pure White).
+            2. **Native Vision C++ NDK**: Ekstraksi YUV420/NV21 zero-copy dengan Homography Mapping ke resolusi layar native PC.
+            3. **One Euro Anti-Jitter Filter**: Menghilangkan jitter bidikan tanpa menambah perceived lag saat tembakan cepat.
+            4. **Dual Driver PC**: Absolute Mouse Pointer (`SendInput`) untuk MAME/Dolphin/Teknoparrot dan Virtual Xbox 360 Gamepad (`ViGEmBus`) untuk PCSX2/RPCS3.
+
+            ---
+            *Catatan: Pastikan menginstall [ViGEmBus Driver](https://github.com/nefarius/ViGEmBus/releases) di PC jika ingin menggunakan fitur emulasi gamepad.*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CameraGun AI</string>
+    <string name="bt_disconnected">BT: DISCONNECTED</string>
+    <string name="bt_connected">BT: CONNECTED</string>
+    <string name="tracking_locked">TARGET: LOCKED</string>
+    <string name="tracking_lost">TARGET: SEARCHING</string>
+    <string name="trigger_label">TRIGGER</string>
+    <string name="reload_label">RELOAD</string>
+</resources>
