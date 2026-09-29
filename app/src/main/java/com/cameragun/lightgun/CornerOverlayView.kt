@@ -125,8 +125,9 @@ class CornerOverlayView @JvmOverloads constructor(
 
     private fun drawCenterAimBox(canvas: Canvas, cx: Float, cy: Float, w: Float, h: Float) {
         // Kotak 16:9 proporsional di tengah layar HP
-        val boxW = minOf(w * 0.48f, 340f)
-        val boxH = boxW * 0.5625f // 16:9 ratio
+        val maxBoxH = minOf(h * 0.55f, (w * 0.46f) * 0.5625f)
+        val boxH = maxBoxH
+        val boxW = boxH * (16f / 9f) // 16:9 ratio
         val left = cx - boxW * 0.5f
         val top = cy - boxH * 0.5f
         val right = cx + boxW * 0.5f
@@ -141,7 +142,7 @@ class CornerOverlayView @JvmOverloads constructor(
 
         // 4 Corner neon brackets
         val stroke = if (isCalibrated) boxCalibratedPaint else reticlePaint
-        val bLen = 26f
+        val bLen = minOf(36f, boxW * 0.08f)
 
         // Top-Left
         canvas.drawLine(left, top, left + bLen, top, stroke)

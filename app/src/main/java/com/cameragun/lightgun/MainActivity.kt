@@ -257,11 +257,13 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     private fun doRecenter() {
+        sensorsManager.displayRotation = windowManager.defaultDisplay.rotation
         sensorsManager.setCenter()
         vibrateHeavy()
         runOnUiThread {
             tvTrackingStatus.text = "● GYRO LOCKED"
             tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            tvCoords.text = "X: 0.500 | Y: 0.500"
             cornerOverlay.updateAimState(true, 0.5f, 0.5f)
         }
     }

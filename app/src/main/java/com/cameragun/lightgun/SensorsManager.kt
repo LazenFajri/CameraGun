@@ -15,14 +15,6 @@ class SensorsManager(context: Context) : SensorEventListener {
     private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
-    // Current Raw Angles (Degrees)
-    @Volatile var rawYawDeg: Float = 0f
-        private set
-    @Volatile var rawPitchDeg: Float = 0f
-        private set
-    @Volatile var rawRollDeg: Float = 0f
-        private set
-
     // Legacy short values for backward-compatible telemetry packets
     @Volatile var pitch: Short = 0
         private set
@@ -37,15 +29,26 @@ class SensorsManager(context: Context) : SensorEventListener {
     @Volatile var gyroDeltaY: Float = 0f
         private set
 
-    // Center Reference (Calibrated Aiming like GKHeart)
+    // Center Reference (3D Orthonormal Basis — 100% Gimbal-Lock Free)
     @Volatile var hasCenter: Boolean = false
         private set
-    @Volatile var centerYaw: Float = 0f
-        private set
-    @Volatile var centerPitch: Float = 0f
-        private set
 
-    // Aiming Sensitivity (Default: 1.0f)
+    private val centerForward = FloatArray(3)
+    private val centerRight = FloatArray(3)
+    private val centerUp = FloatArray(3)
+
+    // GKHeart Deadzone & EMA Smoothing Filter State
+    private var acceptedTargetU: Float = 0.5f
+    private var acceptedTargetV: Float = 0.5f
+    private var smoothedU: Float = 0.5f
+    private var smoothedV: Float = 0.5f
+    private var hasSmoothedAim: Boolean = false
+
+    // Tuning Parameters (Identical to GKHeart architecture)
+    var deadzone: Float = 0.008f       // 0.8% screen deadzone (diam tenang saat tangan diam)
+    var smoothing: Float = 0.25f      // Exponential moving average filter
+    var sweepH: Float = 44.0f         // Total horizontal angle sweep in degrees (16:9 monitor)
+    var sweepV: Float = 26.0f         // Total vertical angle sweep in degrees
     var sensitivityX: Float = 1.0f
     var sensitivityY: Float = 1.0f
 
@@ -53,7 +56,6 @@ class SensorsManager(context: Context) : SensorEventListener {
     @Volatile var displayRotation: Int = Surface.ROTATION_90
 
     private val rotationMatrix = FloatArray(9)
-    private val remappedMatrix = FloatArray(9)
     private val orientationAngles = FloatArray(3)
     private var lastGyroTimestamp: Long = 0
 
@@ -75,70 +77,169 @@ class SensorsManager(context: Context) : SensorEventListener {
 
     /**
      * Kunci posisi tengah monitor (GKHeart RECENTER)
+     * Mengunci orientasi 3D ke tengah layar laptop/TV tanpa gimbal-lock.
      */
+    @Synchronized
     fun setCenter() {
-        centerYaw = rawYawDeg
-        centerPitch = rawPitchDeg
+        if (rotationMatrix[0] == 0f && rotationMatrix[4] == 0f && rotationMatrix[8] == 0f) {
+            return
+        }
+
+        // Vektor arah kamera belakang smartphone (-Z dari device frame) dalam world frame:
+        centerForward[0] = -rotationMatrix[2]
+        centerForward[1] = -rotationMatrix[5]
+        centerForward[2] = -rotationMatrix[8]
+
+        // Vektor Screen Right dan Screen Up sesuai orientasi rotasi HP:
+        when (displayRotation) {
+            Surface.ROTATION_90 -> {
+                // Landscape (Port USB di kanan, kamera di kiri-atas)
+                // Screen Right = -Hardware_Y; Screen Up = +Hardware_X
+                centerRight[0] = -rotationMatrix[1]
+                centerRight[1] = -rotationMatrix[4]
+                centerRight[2] = -rotationMatrix[7]
+
+                centerUp[0]    =  rotationMatrix[0]
+                centerUp[1]    =  rotationMatrix[3]
+                centerUp[2]    =  rotationMatrix[6]
+            }
+            Surface.ROTATION_270 -> {
+                // Reverse Landscape (Port USB di kiri)
+                // Screen Right = +Hardware_Y; Screen Up = -Hardware_X
+                centerRight[0] =  rotationMatrix[1]
+                centerRight[1] =  rotationMatrix[4]
+                centerRight[2] =  rotationMatrix[7]
+
+                centerUp[0]    = -rotationMatrix[0]
+                centerUp[1]    = -rotationMatrix[3]
+                centerUp[2]    = -rotationMatrix[6]
+            }
+            Surface.ROTATION_180 -> {
+                centerRight[0] = -rotationMatrix[0]
+                centerRight[1] = -rotationMatrix[3]
+                centerRight[2] = -rotationMatrix[6]
+
+                centerUp[0]    = -rotationMatrix[1]
+                centerUp[1]    = -rotationMatrix[4]
+                centerUp[2]    = -rotationMatrix[7]
+            }
+            else -> { // Surface.ROTATION_0 (Portrait)
+                centerRight[0] =  rotationMatrix[0]
+                centerRight[1] =  rotationMatrix[3]
+                centerRight[2] =  rotationMatrix[6]
+
+                centerUp[0]    =  rotationMatrix[1]
+                centerUp[1]    =  rotationMatrix[4]
+                centerUp[2]    =  rotationMatrix[7]
+            }
+        }
+
+        normalize(centerForward)
+        normalize(centerRight)
+        normalize(centerUp)
+
+        // Langsung set filter ke tepat tengah (0.5, 0.5)
+        acceptedTargetU = 0.5f
+        acceptedTargetV = 0.5f
+        smoothedU = 0.5f
+        smoothedV = 0.5f
+        hasSmoothedAim = true
         hasCenter = true
     }
 
+    @Synchronized
     fun resetCenter() {
         hasCenter = false
+        hasSmoothedAim = false
+        acceptedTargetU = 0.5f
+        acceptedTargetV = 0.5f
+        smoothedU = 0.5f
+        smoothedV = 0.5f
+    }
+
+    private fun normalize(v: FloatArray) {
+        val len = Math.sqrt((v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).toDouble()).toFloat()
+        if (len > 1e-6f) {
+            v[0] /= len
+            v[1] /= len
+            v[2] /= len
+        }
     }
 
     /**
-     * Menghitung selisih sudut terpendek (-180° s/d +180°)
+     * Menghitung koordinat kursor monitor (0.0 s/d 1.0) berbasis 3D Vector Geometry.
+     * Menggunakan Filter GKHeart (Deadzone + EMA Smoothing) sehingga kursor diam tenang di tengah
+     * dan bergerak akurat mengikuti moncong kamera HP.
      */
-    fun angleDeltaDegrees(current: Float, center: Float): Float {
-        var diff = (current - center) % 360f
-        if (diff > 180f) diff -= 360f
-        if (diff < -180f) diff += 360f
-        return diff
-    }
-
-    /**
-     * Menghitung koordinat kursor monitor (0.0 s/d 1.0) berbasis Gyroscope 100Hz
-     * Menggunakan Sweep Angle ergonomis monitor (horizontal ~30°, vertikal ~18°)
-     */
+    @Synchronized
     fun computeAimCoordinates(): Pair<Float, Float> {
         if (!hasCenter) {
             return Pair(0.5f, 0.5f)
         }
 
-        val deltaYaw = angleDeltaDegrees(rawYawDeg, centerYaw)
-        val deltaPitch = angleDeltaDegrees(rawPitchDeg, centerPitch)
+        // Vektor arah moncong kamera belakang saat ini (-Z)
+        val curForwardX = -rotationMatrix[2]
+        val curForwardY = -rotationMatrix[5]
+        val curForwardZ = -rotationMatrix[8]
 
-        // Rentang sudut pandang monitor tipikal pada jarak duduk / berdiri (16:9):
-        // Horizontal: ~30° total sweep (-15° s/d +15°)
-        // Vertikal:   ~18° total sweep (-9° s/d +9°)
-        val sweepH = 30.0f / sensitivityX.coerceAtLeast(0.2f)
-        val sweepV = 18.0f / sensitivityY.coerceAtLeast(0.2f)
+        // Proyeksi ke kerangka acuan kalibrasi center (Dot Products)
+        val dx = curForwardX * centerRight[0] + curForwardY * centerRight[1] + curForwardZ * centerRight[2]
+        val dy = curForwardX * centerUp[0]    + curForwardY * centerUp[1]    + curForwardZ * centerUp[2]
+        val dz = curForwardX * centerForward[0] + curForwardY * centerForward[1] + curForwardZ * centerForward[2]
 
-        var u = 0.5f + (deltaYaw / sweepH)
-        var v = 0.5f - (deltaPitch / sweepV)
+        // Sudut penyimpangan dalam derajat (atan2 bebas singularitas / gimbal-lock)
+        val angleXDeg = Math.toDegrees(Math.atan2(dx.toDouble(), dz.toDouble())).toFloat()
+        val angleYDeg = Math.toDegrees(Math.atan2(dy.toDouble(), dz.toDouble())).toFloat()
 
-        // Micro-deadzone untuk stabilitas kursor saat tangan diam
-        val du = u - 0.5f
-        val dv = v - 0.5f
-        if (Math.hypot(du.toDouble(), dv.toDouble()) < 0.002) {
-            u = 0.5f
-            v = 0.5f
+        // Rentang sapuan sudut layar monitor
+        val effSweepH = sweepH / sensitivityX.coerceAtLeast(0.2f)
+        val effSweepV = sweepV / sensitivityY.coerceAtLeast(0.2f)
+
+        // Target normalisasi kursor (u: 0.0 kiri s/d 1.0 kanan; v: 0.0 atas s/d 1.0 bawah)
+        val targetU = (0.5f + (angleXDeg / effSweepH)).coerceIn(0.0f, 1.0f)
+        val targetV = (0.5f - (angleYDeg / effSweepV)).coerceIn(0.0f, 1.0f)
+
+        // Filter GKHeart: Deadzone penstabil tremor tangan
+        if (!hasSmoothedAim) {
+            acceptedTargetU = targetU
+            acceptedTargetV = targetV
+            smoothedU = targetU
+            smoothedV = targetV
+            hasSmoothedAim = true
+        } else {
+            val deltaU = targetU - acceptedTargetU
+            val deltaV = targetV - acceptedTargetV
+            val dist = Math.hypot(deltaU.toDouble(), deltaV.toDouble()).toFloat()
+
+            // Jika pergerakan lebih kecil dari deadzone, kursor TETAP DIAM (tidak goyang/geser)
+            if (dist >= deadzone) {
+                acceptedTargetU = targetU
+                acceptedTargetV = targetV
+            }
+
+            // Exponential Moving Average untuk kehalusan tingkat tinggi 100Hz
+            smoothedU = smoothedU * smoothing + acceptedTargetU * (1.0f - smoothing)
+            smoothedV = smoothedV * smoothing + acceptedTargetV * (1.0f - smoothing)
         }
 
-        // Clamp bersih 0.0 - 1.0
-        val normX = u.coerceIn(0.0f, 1.0f)
-        val normY = v.coerceIn(0.0f, 1.0f)
+        val finalU = smoothedU.coerceIn(0.0f, 1.0f)
+        val finalV = smoothedV.coerceIn(0.0f, 1.0f)
 
-        return Pair(normX, normY)
+        return Pair(finalU, finalV)
     }
 
     /**
-     * Deteksi Off-Screen Reload otomatis (saat moncong diarahkan ke bawah luar layar)
+     * Deteksi Off-Screen Reload otomatis (saat moncong diarahkan ke bawah luar monitor)
      */
     fun isOffscreenReload(): Boolean {
         if (!hasCenter) return false
-        val deltaPitch = angleDeltaDegrees(rawPitchDeg, centerPitch)
-        return deltaPitch < -20.0f
+        val curForwardX = -rotationMatrix[2]
+        val curForwardY = -rotationMatrix[5]
+        val curForwardZ = -rotationMatrix[8]
+        val dy = curForwardX * centerUp[0] + curForwardY * centerUp[1] + curForwardZ * centerUp[2]
+        val dz = curForwardX * centerForward[0] + curForwardY * centerForward[1] + curForwardZ * centerForward[2]
+        val angleYDeg = Math.toDegrees(Math.atan2(dy.toDouble(), dz.toDouble())).toFloat()
+        return angleYDeg < -20.0f
     }
 
     override fun onSensorChanged(event: SensorEvent) {
@@ -146,51 +247,12 @@ class SensorsManager(context: Context) : SensorEventListener {
             Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> {
                 SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
 
-                // Remap koordinat sistem berdasarkan orientasi layar HP (Landscape / Portrait)
-                when (displayRotation) {
-                    Surface.ROTATION_90 -> {
-                        SensorManager.remapCoordinateSystem(
-                            rotationMatrix,
-                            SensorManager.AXIS_Y,
-                            SensorManager.AXIS_MINUS_X,
-                            remappedMatrix
-                        )
-                    }
-                    Surface.ROTATION_270 -> {
-                        SensorManager.remapCoordinateSystem(
-                            rotationMatrix,
-                            SensorManager.AXIS_MINUS_Y,
-                            SensorManager.AXIS_X,
-                            remappedMatrix
-                        )
-                    }
-                    Surface.ROTATION_180 -> {
-                        SensorManager.remapCoordinateSystem(
-                            rotationMatrix,
-                            SensorManager.AXIS_MINUS_X,
-                            SensorManager.AXIS_MINUS_Y,
-                            remappedMatrix
-                        )
-                    }
-                    else -> { // Surface.ROTATION_0 (Portrait)
-                        System.arraycopy(rotationMatrix, 0, remappedMatrix, 0, 9)
-                    }
-                }
-
-                SensorManager.getOrientation(remappedMatrix, orientationAngles)
-
+                // Simpan orientasi legacy untuk kompatibilitas data packet
+                SensorManager.getOrientation(rotationMatrix, orientationAngles)
                 val radToDeg = (180.0 / Math.PI).toFloat()
-                val curYaw = orientationAngles[0] * radToDeg
-                val curPitch = orientationAngles[1] * radToDeg
-                val curRoll = orientationAngles[2] * radToDeg
-
-                rawYawDeg = curYaw
-                rawPitchDeg = curPitch
-                rawRollDeg = curRoll
-
-                yaw = (curYaw * 100).toInt().coerceIn(-32768, 32767).toShort()
-                pitch = (curPitch * 100).toInt().coerceIn(-32768, 32767).toShort()
-                roll = (curRoll * 100).toInt().coerceIn(-32768, 32767).toShort()
+                yaw = (orientationAngles[0] * radToDeg * 100).toInt().coerceIn(-32768, 32767).toShort()
+                pitch = (orientationAngles[1] * radToDeg * 100).toInt().coerceIn(-32768, 32767).toShort()
+                roll = (orientationAngles[2] * radToDeg * 100).toInt().coerceIn(-32768, 32767).toShort()
             }
             Sensor.TYPE_GYROSCOPE -> {
                 if (lastGyroTimestamp != 0L) {
