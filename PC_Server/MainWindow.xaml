@@ -203,6 +203,7 @@
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button x:Name="btnTutorial" Style="{StaticResource TitleBarBtn}" Content="?" ToolTip="Panduan &amp; Tutorial Setup" Click="BtnTutorial_Click" Width="30" Margin="0,0,4,0"/>
                         <Button Style="{StaticResource TitleBarBtn}" Content="—" Click="BtnMinimize_Click"/>
                         <Button Style="{StaticResource TitleBarBtn}" Content="□" Click="BtnMaximize_Click" Margin="2,0"/>
                         <Button x:Name="btnClose" Style="{StaticResource TitleBarBtn}" Content="✕" Click="BtnClose_Click"/>
@@ -431,11 +432,15 @@
                                          FontSize="11" Margin="0,3" GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
                         </StackPanel>
 
-                        <Separator Background="{StaticResource BorderDim}" Margin="0,12"/>
+                        <Separator Background="{StaticResource BorderDim}" Margin="0,10"/>
+
+                        <Button x:Name="btnOpenTutorial" Style="{StaticResource CyberButton}"
+                                Content="📖  PANDUAN &amp; TUTORIAL" Click="BtnTutorial_Click"
+                                HorizontalAlignment="Stretch" Margin="0,0,0,6" BorderBrush="{StaticResource AccentCyan}"/>
 
                         <Button x:Name="btnVigemDownload" Style="{StaticResource CyberButton}"
                                 Content="↗ DOWNLOAD ViGEmBus" Click="BtnVigemDownload_Click"
-                                HorizontalAlignment="Stretch" Margin="0,8,0,6"/>
+                                HorizontalAlignment="Stretch" Margin="0,0,0,6"/>
 
                         <Button Style="{StaticResource CyberButton}"
                                 Content="⊟  MINIMIZE TO TRAY" Click="BtnMinToTray_Click"
@@ -458,6 +463,95 @@
                                FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondary}"/>
                 </Grid>
             </Border>
+            <!-- =============== MODAL TUTORIAL POPUP =============== -->
+            <Grid x:Name="modalTutorial" Grid.RowSpan="3" Background="#EE0A0E1A" Visibility="Collapsed">
+                <Border Background="{StaticResource BgSurface}" BorderBrush="{StaticResource AccentCyan}" BorderThickness="1.5"
+                        CornerRadius="12" MaxWidth="760" MaxHeight="520" Margin="24">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="50"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="54"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header -->
+                        <Border Grid.Row="0" Background="#0D1220" CornerRadius="12,12,0,0" Padding="16,0">
+                            <Grid>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="📖" FontSize="16" Foreground="{StaticResource AccentCyan}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="PANDUAN PENGGUNAAN &amp; SETUP LIGHTGUN" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <Button Style="{StaticResource TitleBarBtn}" Content="✕" HorizontalAlignment="Right" VerticalAlignment="Center" Click="BtnCloseTutorial_Click"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Content Scroll -->
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,14">
+                            <StackPanel>
+                                <!-- CARD 1: VIGEMBUS FAQ -->
+                                <Border Background="{StaticResource BgCard}" CornerRadius="8" BorderBrush="{StaticResource AccentOrange}" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="❓ APAKAH HARUS MENGGUNAKAN VIGEMBUS?" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentOrange}" Margin="0,0,0,6"/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimary}" LineHeight="18">
+                                            <Bold Foreground="{StaticResource AccentGreen}">JAWABAN: TIDAK WAJIB / OPSIONAL!</Bold>&#x0a;
+                                            CameraGun PC Server secara default mengaktifkan mode <Bold Foreground="{StaticResource AccentCyan}">Native Absolute Mouse Pointer (SendInput)</Bold> yang langsung aktif tanpa menginstall driver apapun!&#x0a;&#x0a;
+                                            • <Bold Foreground="{StaticResource AccentCyan}">Kapan CUKUP pakai Mouse?</Bold> Sebagian besar emulator arcade populer (Teknoparrot, Dolphin Wii, MAME, Model 2/3, House of the Dead) menggunakan mouse sebagai input lightgun standar. Anda bisa langsung bidik dan tembak tanpa ViGEmBus!&#x0a;
+                                            • <Bold Foreground="{StaticResource AccentCyan}">Kapan butuh ViGEmBus?</Bold> Hanya diperlukan jika emulator Anda (seperti PCSX2 untuk GunCon 2 atau RPCS3) secara khusus mewajibkan virtual stick gamepad Xbox 360 / DualShock 4.
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- CARD 2: QUICKSTART -->
+                                <Border Background="{StaticResource BgCard}" CornerRadius="8" BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="⚡ 5 LANGKAH CEPAT CARA PENGGUNAAN" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentCyan}" Margin="0,0,0,8"/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimary}" LineHeight="19">
+                                            <Bold Foreground="{StaticResource AccentCyan}">1. Jalankan PC Server:</Bold> Nyalakan Bluetooth PC, jalankan PC_Server.exe. Border monitor akan otomatis muncul di sekeliling layar.&#x0a;
+                                            <Bold Foreground="{StaticResource AccentCyan}">2. Buka Aplikasi di HP:</Bold> Posisikan smartphone dalam posisi Landscape menghadap monitor. Buka aplikasi CameraGun AI.&#x0a;
+                                            <Bold Foreground="{StaticResource AccentCyan}">3. Auto-Connect Bluetooth:</Bold> HP dan PC akan otomatis terhubung via BLE (badge status berubah <Run Foreground="{StaticResource AccentGreen}" FontWeight="Bold">CONNECTED</Run> hijau). Tidak perlu pairing manual di menu setting HP!&#x0a;
+                                            <Bold Foreground="{StaticResource AccentCyan}">4. Kunci Target (Lock Quad):</Bold> Arahkan kamera HP ke monitor sampai 4 sudut border masuk ke kamera. Status di HP dan radar PC akan berubah menjadi <Run Foreground="{StaticResource AccentGreen}" FontWeight="Bold">TARGET: LOCKED</Run>.&#x0a;
+                                            <Bold Foreground="{StaticResource AccentCyan}">5. Bidik &amp; Tembak:</Bold> Tarik trigger <Bold>L2</Bold> di layar HP untuk menembak, dan arahkan laras HP ke bawah / luar layar untuk <Bold>Off-Screen Reload</Bold>!
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- CARD 3: BORDER SYSTEM -->
+                                <Border Background="{StaticResource BgCard}" CornerRadius="8" BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Padding="14" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="🎨 MENGATUR WARNA BORDER MONITOR" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentGreen}" Margin="0,0,0,8"/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimary}" LineHeight="19">
+                                            Border monitor adalah patokan kamera HP untuk mendeteksi layar menggunakan homografi matematika.&#x0a;
+                                            • Pilih preset warna: <Bold Foreground="#00E5FF">Cyan (C)</Bold>, <Bold Foreground="#00FF66">Green (G)</Bold>, <Bold Foreground="#FF0066">Magenta (M)</Bold>, atau <Bold Foreground="#FFFFFF">White (W)</Bold>.&#x0a;
+                                            • Ganti warna border jika latar belakang game memiliki warna serupa (misal game hutan Jurassic Park, gunakan Magenta agar tidak rancu dengan daun hijau).&#x0a;
+                                            • Klik <Bold>SYNC TO PHONE</Bold> agar HP langsung menyamakan rentang warna deteksi HSV secara instan.
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- CARD 4: MAPPING EMULATOR -->
+                                <Border Background="{StaticResource BgCard}" CornerRadius="8" BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Padding="14">
+                                    <StackPanel>
+                                        <TextBlock Text="🕹️ PANDUAN MAPPING DI EMULATOR" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentMagenta}" Margin="0,0,0,8"/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextPrimary}" LineHeight="19">
+                                            • <Bold Foreground="{StaticResource TextPrimary}">Teknoparrot:</Bold> Gun X/Y ➔ Cursor X / Y, Trigger ➔ Left Mouse Click, Reload ➔ Right Mouse Click.&#x0a;
+                                            • <Bold Foreground="{StaticResource TextPrimary}">Dolphin (Wii Remote):</Bold> Masuk ke Controllers ➔ Emulated Wii Remote ➔ Point ➔ Cursor X/Y. Trigger ➔ Tombol B.&#x0a;
+                                            • <Bold Foreground="{StaticResource TextPrimary}">PCSX2 (GunCon 2):</Bold> Controller Settings ➔ USB Port 1 ➔ GunCon 2 ➔ Mouse (atau gamepad jika ViGEmBus terpasang).&#x0a;
+                                            • <Bold Foreground="{StaticResource TextPrimary}">MAME:</Bold> Buka mame.ini: <Run FontFamily="Consolas">lightgun 1, lightgun_device mouse, offscreen_reload 1</Run>.
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Footer -->
+                        <Border Grid.Row="2" Background="#0D1220" CornerRadius="0,0,12,12" Padding="16,0">
+                            <Button Style="{StaticResource CyberButton}" Content="✓  SAYA MENGERTI / TUTUP PANDUAN"
+                                    HorizontalAlignment="Right" VerticalAlignment="Center" Padding="20,8"
+                                    Click="BtnCloseTutorial_Click" BorderBrush="{StaticResource AccentGreen}"/>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
         </Grid>
     </Border>
 </Window>

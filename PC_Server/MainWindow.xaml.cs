@@ -433,6 +433,16 @@ namespace CameraGun.Server
             Close();
         }
 
+        private void BtnTutorial_Click(object sender, RoutedEventArgs e)
+        {
+            if (modalTutorial != null) modalTutorial.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseTutorial_Click(object sender, RoutedEventArgs e)
+        {
+            if (modalTutorial != null) modalTutorial.Visibility = Visibility.Collapsed;
+        }
+
         private void BtnMinToTray_Click(object sender, RoutedEventArgs e)
         {
             if (_trayIcon != null)

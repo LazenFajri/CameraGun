@@ -104,10 +104,19 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         dotBt = findViewById(R.id.dotBt)
         textureView.surfaceTextureListener = this
 
-        // Settings gear button
-        findViewById<Button>(R.id.btnSettings).setOnClickListener {
+        // Tutorial / Help button & modal overlay
+        val layoutTutorial = findViewById<View>(R.id.layoutTutorial)
+        findViewById<Button>(R.id.btnHelp).setOnClickListener {
             vibrateLight()
-            // Future: open SettingsBottomSheet here
+            layoutTutorial.visibility = View.VISIBLE
+        }
+        findViewById<Button>(R.id.btnCloseTutorial).setOnClickListener {
+            vibrateLight()
+            layoutTutorial.visibility = View.GONE
+        }
+        findViewById<Button>(R.id.btnGotIt).setOnClickListener {
+            vibrateLight()
+            layoutTutorial.visibility = View.GONE
         }
     }
 

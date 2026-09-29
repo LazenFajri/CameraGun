@@ -298,17 +298,172 @@
         android:textStyle="bold"
         android:hapticFeedbackEnabled="true" />
 
-    <!-- Layer 6: Settings Gear Button (Bottom Right Corner) -->
+    <!-- Layer 6: Guide / Tutorial Button (Side Control) -->
     <Button
-        android:id="@+id/btnSettings"
+        android:id="@+id/btnHelp"
         android:layout_width="42dp"
         android:layout_height="42dp"
         android:layout_gravity="end|bottom"
         android:layout_marginEnd="12dp"
         android:layout_marginBottom="260dp"
         android:background="@drawable/btn_cyber_menu"
-        android:text="⚙"
+        android:text="?"
         android:textColor="@color/cyber_cyan"
-        android:textSize="18sp" />
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- Layer 7: Tutorial & Setup Guide Modal Overlay -->
+    <FrameLayout
+        android:id="@+id/layoutTutorial"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E60A0E1A"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_marginHorizontal="36dp"
+            android:layout_marginVertical="16dp"
+            android:background="@drawable/bg_cyber_panel"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <!-- Header -->
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:text="📖 PANDUAN PENGGUNAAN &amp; TUTORIAL"
+                    android:textColor="@color/cyber_cyan"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/btnCloseTutorial"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/btn_cyber_menu"
+                    android:text="✕"
+                    android:textColor="@color/cyber_text_secondary"
+                    android:textSize="14sp" />
+            </RelativeLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/cyber_border"
+                android:layout_marginBottom="8dp" />
+
+            <!-- Scrollable Guide Content -->
+            <ScrollView
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:fillViewport="true">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <!-- Section: Apakah Wajib ViGEmBus? -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="❓ APAKAH HARUS PAKAI VIGEMBUS DI PC?"
+                        android:textColor="@color/cyber_orange"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:layout_marginTop="2dp" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="JAWABAN: TIDAK WAJIB!\n• PC Server otomatis menggunakan Absolute Mouse Pointer yang langsung kompatibel dengan Teknoparrot, Dolphin Wii, MAME, Model 2/3, dan game arcade PC tanpa driver tambahan apapun.\n• ViGEmBus hanya diperlukan jika memainkan emulator PS2/PS3 (PCSX2/RPCS3) yang mewajibkan input virtual stick Xbox/DualShock."
+                        android:textColor="@color/cyber_text_primary"
+                        android:textSize="11sp"
+                        android:lineSpacingExtra="3dp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Section: Cara Membidik -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎯 1. CARA MEMBIDIK &amp; MENGUNCI LAYAR"
+                        android:textColor="@color/cyber_green"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="• Pegang smartphone mendatar (Landscape) menghadap monitor PC.\n• Arahkan kamera HP sampai ke-4 sudut border monitor masuk ke layar kamera.\n• Ketika border terdeteksi, kotak hijau 'TARGET: LOCKED' akan aktif mengunci monitor."
+                        android:textColor="@color/cyber_text_primary"
+                        android:textSize="11sp"
+                        android:lineSpacingExtra="3dp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Section: Tombol Kontrol -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎮 2. FUNGSI TOMBOL CONTROLLER"
+                        android:textColor="@color/cyber_cyan"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="• L2 (TRIGGER KIRI): Pelatuk tembakan utama (Primary Fire / Left Mouse Click).\n• R2 (ALT FIRE): Tembakan sekunder / granat (Right Mouse Click).\n• RELOAD / OFF-SCREEN: Tekan tombol RELOAD di bawah, atau arahkan laras HP ke bawah/luar layar untuk reload otomatis seperti pistol arcade asli!\n• D-PAD &amp; AKSI (△ ○ ✖ □): Untuk navigasi menu, coin insert, atau start game."
+                        android:textColor="@color/cyber_text_primary"
+                        android:textSize="11sp"
+                        android:lineSpacingExtra="3dp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="10dp" />
+
+                    <!-- Section: Koneksi Bluetooth -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="📡 3. KONEKSI BLUETOOTH CEPAT"
+                        android:textColor="@color/cyber_magenta"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="• Tidak perlu pairing manual di menu setting Android!\n• Cukup buka PC Server di komputer terlebih dahulu, lalu buka aplikasi CameraGun di HP. Koneksi BLE akan tersambung otomatis dalam 1 detik."
+                        android:textColor="@color/cyber_text_primary"
+                        android:textSize="11sp"
+                        android:lineSpacingExtra="3dp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginBottom="8dp" />
+                </LinearLayout>
+            </ScrollView>
+
+            <Button
+                android:id="@+id/btnGotIt"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_gravity="end"
+                android:background="@drawable/btn_cyber_menu"
+                android:text="✓ SAYA MENGERTI"
+                android:textColor="@color/cyber_green"
+                android:textSize="11sp"
+                android:paddingHorizontal="20dp"
+                android:layout_marginTop="6dp" />
+        </LinearLayout>
+    </FrameLayout>
 
 </FrameLayout>
