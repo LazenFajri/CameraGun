@@ -2,6 +2,7 @@ package com.cameragun.lightgun
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -18,6 +19,7 @@ import android.os.*
 import android.util.Log
 import android.view.*
 import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -51,6 +53,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     private val nativeBridge = NativeVisionBridge()
     private lateinit var bluetoothTransmitter: BluetoothTransmitter
+    private lateinit var networkTransmitter: NetworkTransmitter
     private lateinit var sensorsManager: SensorsManager
 
     private var cameraDevice: CameraDevice? = null
@@ -99,6 +102,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         sensorsManager = SensorsManager(this)
         nativeBridge.initVision(1920, 1080)
 
+        networkTransmitter = NetworkTransmitter(this) { hMin, sMin, vMin, hMax, sMax, vMax, w, h ->
+            nativeBridge.updateHsvBoundaries(hMin, sMin, vMin, hMax, sMax, vMax)
+            nativeBridge.initVision(w, h)
+        }
+        networkTransmitter.onStatusChanged = { _, _ ->
+            runOnUiThread {
+                updateBtStatusUI()
+            }
+        }
+
         bluetoothTransmitter = BluetoothTransmitter(this) { hMin, sMin, vMin, hMax, sMax, vMax, w, h ->
             nativeBridge.updateHsvBoundaries(hMin, sMin, vMin, hMax, sMax, vMax)
             nativeBridge.initVision(w, h)
@@ -117,13 +130,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
         bluetoothTransmitter.onStatusChanged = { statusText, isConnected ->
             runOnUiThread {
-                tvBtStatus.text = "BT: $statusText"
-                val statusColor = if (isConnected) R.color.cyber_green else R.color.cyber_orange
-                tvBtStatus.setTextColor(ContextCompat.getColor(this, statusColor))
-                val dotDrawable = dotBt.background
-                if (dotDrawable is GradientDrawable) {
-                    dotDrawable.setColor(ContextCompat.getColor(this, statusColor))
-                }
+                updateBtStatusUI()
             }
         }
 
@@ -196,6 +203,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             nativeBridge.updateHsvBoundaries(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5])
             btnBorderColor.text = "🎨 $cName"
             btnBorderColor.setTextColor(ContextCompat.getColor(this, colorTextColors[currentColorIndex]))
+        }
+
+        // Wi-Fi Pairing Dialog Button
+        findViewById<Button>(R.id.btnWifi)?.setOnClickListener {
+            vibrateLight()
+            showWifiDialog()
         }
 
         // Tutorial / Help button & modal overlay
@@ -309,9 +322,41 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
     }
 
+    private fun showWifiDialog() {
+        val builder = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+        builder.setTitle("📶 KONEKSI WI-FI PC SERVER")
+
+        val input = EditText(this).apply {
+            val savedIp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString("wifi_server_ip", "")
+            setText(if (networkTransmitter.connectedIp != null) networkTransmitter.connectedIp else savedIp)
+            hint = "Contoh: 192.168.1.15:8765"
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.cyber_cyan))
+            setPadding(30, 30, 30, 30)
+        }
+        builder.setView(input)
+
+        builder.setPositiveButton("HUBUNGKAN") { _, _ ->
+            val ipText = input.text.toString().trim()
+            if (ipText.isNotEmpty()) {
+                getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                    .edit().putString("wifi_server_ip", ipText).apply()
+                networkTransmitter.connectDirect(ipText)
+            }
+        }
+
+        builder.setNeutralButton("CARI OTOMATIS") { _, _ ->
+            networkTransmitter.autoDiscover()
+        }
+
+        builder.setNegativeButton("BATAL", null)
+        builder.show()
+    }
+
     private fun startSystems() {
         sensorsManager.start()
         bluetoothTransmitter.start()
+        val savedWifiIp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString("wifi_server_ip", null)
+        networkTransmitter.start(savedWifiIp)
         startBackgroundThread()
     }
 
@@ -500,8 +545,19 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             buffer, width, height, timestampSec, rotationDegrees, visionResults, visionCorners
         )
 
-        val normX = visionResults[0]
-        val normY = visionResults[1]
+        val normX: Float
+        val normY: Float
+
+        if (isLocked) {
+            normX = visionResults[0]
+            normY = visionResults[1]
+        } else {
+            // Gyroscope Hybrid Dead-Reckoning:
+            // Saat kamera kehilangan border layar sesaat, gunakan delta gyro agar bidikan tetap mengalir mulus
+            normX = (visionResults[0] + sensorsManager.gyroDeltaX * 0.35f).coerceIn(0f, 1f)
+            normY = (visionResults[1] - sensorsManager.gyroDeltaY * 0.35f).coerceIn(0f, 1f)
+        }
+
         val flags = visionResults[2].toInt()
         val confidence = visionResults[3].toInt()
         val currentButtons = buttonMask.get()
@@ -509,9 +565,19 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val roll = sensorsManager.roll
         val timestampMs = (SystemClock.elapsedRealtime() and 0xFFFF).toInt()
 
-        bluetoothTransmitter.sendTelemetry(
-            normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
-        )
+        // Kirim via Wi-Fi UDP (Ultra-low latency 1ms, no BLE throttle)
+        if (networkTransmitter.isConnected) {
+            networkTransmitter.sendTelemetry(
+                normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
+            )
+        }
+
+        // Kirim juga via BLE jika terhubung
+        if (bluetoothTransmitter.isClientConnected) {
+            bluetoothTransmitter.sendTelemetry(
+                normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
+            )
+        }
 
         // Update UI
         frameCount++
@@ -540,14 +606,30 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     private fun updateBtStatusUI() {
-        val connected = bluetoothTransmitter.isClientConnected
-        tvBtStatus.text = if (connected) getString(R.string.bt_connected) else getString(R.string.bt_disconnected)
-        val statusColor = if (connected) R.color.cyber_green else R.color.cyber_orange
-        tvBtStatus.setTextColor(ContextCompat.getColor(this, statusColor))
+        val wifiConnected = networkTransmitter.isConnected
+        val btConnected = bluetoothTransmitter.isClientConnected
 
-        val dotDrawable = dotBt.background
-        if (dotDrawable is GradientDrawable) {
-            dotDrawable.setColor(ContextCompat.getColor(this, statusColor))
+        if (wifiConnected) {
+            tvBtStatus.text = "📶 WI-FI: OK"
+            tvBtStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            val dotDrawable = dotBt.background
+            if (dotDrawable is GradientDrawable) {
+                dotDrawable.setColor(ContextCompat.getColor(this, R.color.cyber_green))
+            }
+        } else if (btConnected) {
+            tvBtStatus.text = "● BT: OK"
+            tvBtStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            val dotDrawable = dotBt.background
+            if (dotDrawable is GradientDrawable) {
+                dotDrawable.setColor(ContextCompat.getColor(this, R.color.cyber_green))
+            }
+        } else {
+            tvBtStatus.text = "SEARCHING..."
+            tvBtStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
+            val dotDrawable = dotBt.background
+            if (dotDrawable is GradientDrawable) {
+                dotDrawable.setColor(ContextCompat.getColor(this, R.color.cyber_orange))
+            }
         }
     }
 
@@ -614,6 +696,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         stopBackgroundThread()
         sensorsManager.stop()
         bluetoothTransmitter.stop()
+        networkTransmitter.stop()
         captureSession?.close()
         cameraDevice?.close()
         imageReader?.close()

@@ -206,6 +206,15 @@
                                 ToolTip="Tekan F8 di keyboard kapan saja untuk Pause / Resume mouse">
                             <TextBlock x:Name="txtInputStatus" Text="F8: ACTIVE" FontSize="10" Foreground="{StaticResource AccentGreen}" FontWeight="SemiBold"/>
                         </Border>
+
+                        <Border x:Name="badgeWifi" Margin="8,0,0,0" CornerRadius="10" Padding="10,3" VerticalAlignment="Center"
+                                Background="#1A2138" BorderBrush="{StaticResource AccentCyan}" BorderThickness="1"
+                                ToolTip="Koneksi Wi-Fi Ultra-Fast 100Hz (Klik tombol Scan QR untuk menghubungkan HP)">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="dotWifi" Width="8" Height="8" Fill="{StaticResource AccentCyan}" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="txtWifiStatus" Text="WI-FI: READY" FontSize="10" Foreground="{StaticResource AccentCyan}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
 
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -446,9 +455,13 @@
                                          FontSize="11" Margin="0,3" GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
                         </StackPanel>
 
+                        <Button x:Name="btnShowQr" Style="{StaticResource CyberButton}"
+                                Content="📶  WI-FI / SCAN QR CODE" Click="BtnShowQr_Click"
+                                HorizontalAlignment="Stretch" Margin="0,8,0,4" BorderBrush="{StaticResource AccentCyan}"/>
+
                         <Button x:Name="btnToggleReticle" Style="{StaticResource CyberButton}"
                                 Content="🎯  ON-SCREEN RETICLE: OFF" Click="BtnToggleReticle_Click"
-                                HorizontalAlignment="Stretch" Margin="0,6,0,0"/>
+                                HorizontalAlignment="Stretch" Margin="0,4,0,0"/>
 
                         <Separator Background="{StaticResource BorderDim}" Margin="0,10"/>
 
@@ -566,6 +579,57 @@
                             <Button Style="{StaticResource CyberButton}" Content="✓  SAYA MENGERTI / TUTUP PANDUAN"
                                     HorizontalAlignment="Right" VerticalAlignment="Center" Padding="20,8"
                                     Click="BtnCloseTutorial_Click" BorderBrush="{StaticResource AccentGreen}"/>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- Modal QR Code Wi-Fi -->
+            <Grid x:Name="modalQr" Grid.RowSpan="3" Background="#D9070A14" Visibility="Collapsed">
+                <Border Width="450" VerticalAlignment="Center" HorizontalAlignment="Center"
+                        Background="{StaticResource BgSurface}" CornerRadius="12"
+                        BorderBrush="{StaticResource AccentCyan}" BorderThickness="1.5">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="50"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="55"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Header -->
+                        <Border Grid.Row="0" Background="#111827" CornerRadius="12,12,0,0" Padding="16,0">
+                            <Grid>
+                                <TextBlock Text="📶 WI-FI STREAM &amp; QR CODE PAIRING" FontSize="13" FontWeight="Bold"
+                                           Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center"/>
+                                <Button Style="{StaticResource TitleBarBtn}" Content="✕"
+                                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                                        Click="BtnCloseQr_Click"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Body -->
+                        <StackPanel Grid.Row="1" Margin="20" HorizontalAlignment="Center">
+                            <Border Background="White" CornerRadius="8" Padding="12" HorizontalAlignment="Center" Margin="0,0,0,14"
+                                    BorderBrush="{StaticResource AccentCyan}" BorderThickness="2">
+                                <Image x:Name="imgQrCode" Width="200" Height="200" Stretch="Uniform"/>
+                            </Border>
+
+                            <TextBlock x:Name="txtServerIpDisplay" Text="IP: 192.168.1.X : 8765" FontSize="15" FontWeight="Bold"
+                                       Foreground="{StaticResource AccentGreen}" HorizontalAlignment="Center" Margin="0,0,0,6"/>
+
+                            <TextBlock Text="Koneksi Wi-Fi LAN berkecepatan 100 Hz dengan latensi 1 ms (bebas lag dan anti patah-patah). Buka CameraGun di HP, pilih 'Connect Wi-Fi', lalu arahkan kamera ke QR ini atau pilih Auto-Connect."
+                                       TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextSecondary}"
+                                       TextAlignment="Center" LineHeight="17" Margin="0,0,0,6" MaxWidth="380"/>
+                        </StackPanel>
+
+                        <!-- Footer -->
+                        <Border Grid.Row="2" Background="#0D1220" CornerRadius="0,0,12,12" Padding="16,0">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                <Button Style="{StaticResource CyberButton}" Content="📋  SALIN ALAMAT IP"
+                                        Click="BtnCopyIp_Click" Margin="0,0,8,0"/>
+                                <Button Style="{StaticResource CyberButton}" Content="✓  TUTUP"
+                                        Click="BtnCloseQr_Click" BorderBrush="{StaticResource AccentCyan}"/>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </Border>

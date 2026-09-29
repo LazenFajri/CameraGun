@@ -34,6 +34,7 @@ namespace CameraGun.Server
         private BorderOverlay? _overlay;
         private Thread? _overlayThread;
         private BluetoothReceiver? _btReceiver;
+        private NetworkReceiver? _netReceiver;
         private InputInjection? _inputInjection;
         private OnScreenReticleWindow? _reticleWindow;
         private bool _reticleEnabled = false;
@@ -64,6 +65,7 @@ namespace CameraGun.Server
             InitializeMonitorButton();
             StartBorderOverlay();
             InitializeBluetooth();
+            InitializeNetworkReceiver();
             InitializeSystemTray();
             InitializeGlobalHotKey();
             InitializeReticleOverlay();
@@ -215,6 +217,52 @@ namespace CameraGun.Server
             catch (Exception ex)
             {
                 if (txtStatusMsg != null) txtStatusMsg.Text = $"BT Error: {ex.Message}";
+            }
+        }
+
+        private void InitializeNetworkReceiver()
+        {
+            try
+            {
+                _netReceiver = new NetworkReceiver();
+
+                _netReceiver.StatusChanged += status =>
+                {
+                    Dispatcher.BeginInvoke(() =>
+                    {
+                        if (txtStatusMsg != null) txtStatusMsg.Text = status;
+
+                        if (_netReceiver != null && _netReceiver.IsConnected)
+                        {
+                            txtWifiStatus.Text = "WI-FI: CONNECTED";
+                            txtWifiStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                            dotWifi.Fill = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                            badgeWifi.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                        }
+                        else
+                        {
+                            txtWifiStatus.Text = $"WI-FI: {_netReceiver?.LocalIpAddress}:{NetworkReceiver.DefaultPort}";
+                            txtWifiStatus.Foreground = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                            dotWifi.Fill = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                            badgeWifi.BorderBrush = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                        }
+                    });
+                };
+
+                _netReceiver.ConfigChannelReady += () =>
+                {
+                    Dispatcher.BeginInvoke((Action)(() =>
+                    {
+                        SyncCalibrationToAndroid();
+                    }));
+                };
+
+                _netReceiver.PacketReceived += OnPacketReceived;
+                _netReceiver.StartListening();
+            }
+            catch (Exception ex)
+            {
+                if (txtStatusMsg != null) txtStatusMsg.Text = $"Wi-Fi Error: {ex.Message}";
             }
         }
 
@@ -518,6 +566,35 @@ namespace CameraGun.Server
             txtStatusMsg.Text = _reticleEnabled ? "On-Screen Cyber Reticle: AKTIF" : "On-Screen Reticle: NONAKTIF";
         }
 
+        private void BtnShowQr_Click(object sender, RoutedEventArgs e)
+        {
+            if (_netReceiver == null) return;
+            string ip = _netReceiver.LocalIpAddress;
+            int port = _netReceiver.Port;
+            txtServerIpDisplay.Text = $"IP: {ip} : {port}";
+            string qrPayload = $"{ip}:{port}";
+            try
+            {
+                imgQrCode.Source = QrCodeGenerator.GenerateQrDrawing(qrPayload, 200);
+            }
+            catch { }
+            if (modalQr != null) modalQr.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseQr_Click(object sender, RoutedEventArgs e)
+        {
+            if (modalQr != null) modalQr.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnCopyIp_Click(object sender, RoutedEventArgs e)
+        {
+            if (_netReceiver != null)
+            {
+                Clipboard.SetText($"{_netReceiver.LocalIpAddress}:{_netReceiver.Port}");
+                txtStatusMsg.Text = $"✓ Alamat IP {_netReceiver.LocalIpAddress}:{_netReceiver.Port} disalin ke clipboard!";
+            }
+        }
+
         private void BtnVigemDownload_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -540,15 +617,12 @@ namespace CameraGun.Server
         {
             if (_btReceiver == null || _overlay == null) return;
 
-            if (!_btReceiver.IsConnected)
-            {
-                txtStatusMsg.Text = "Sync failed — HP belum terhubung via Bluetooth (Buka aplikasi di HP)";
-                return;
-            }
+            bool isBtReady = _btReceiver != null && _btReceiver.IsConnected && _btReceiver.IsConfigReady;
+            bool isNetReady = _netReceiver != null && _netReceiver.IsConnected && _netReceiver.IsConfigReady;
 
-            if (!_btReceiver.IsConfigReady)
+            if (!isBtReady && !isNetReady)
             {
-                txtStatusMsg.Text = "Menyiapkan saluran data kalibrasi ke HP...";
+                txtStatusMsg.Text = "Sync failed — HP belum terhubung via Wi-Fi atau Bluetooth (Buka aplikasi di HP)";
                 return;
             }
 
@@ -576,7 +650,11 @@ namespace CameraGun.Server
 
             Task.Run(async () =>
             {
-                bool ok = await _btReceiver.SendConfigAsync(config);
+                bool btOk = false;
+                bool netOk = false;
+                if (isBtReady) btOk = await _btReceiver!.SendConfigAsync(config);
+                if (isNetReady) netOk = await _netReceiver!.SendConfigAsync(config);
+                bool ok = btOk || netOk;
                 await Dispatcher.InvokeAsync(() =>
                 {
                     txtStatusMsg.Text = ok
@@ -663,6 +741,7 @@ namespace CameraGun.Server
 
             _uiTimer?.Stop();
             _btReceiver?.Dispose();
+            _netReceiver?.Dispose();
             _inputInjection?.Dispose();
 
             if (_trayIcon != null)

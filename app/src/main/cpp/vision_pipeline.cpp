@@ -18,10 +18,11 @@ class VisionPipelineCore {
 private:
     std::mutex pipelineMutex;
     
-    // HSV Calibration Range (Default: Electric Cyan #00E5FF matching PC Server default)
-    // Cyan in OpenCV (0-180): Hue ~ 93. Range: [70..115], Saturation >= 40, Value >= 50
-    cv::Scalar lowerHsv{70, 40, 50};
-    cv::Scalar upperHsv{115, 255, 255};
+    // HSV Calibration Range (Default: Electric Cyan #00E5FF)
+    // Monitor screen backlight lowers saturation significantly (glare / wash-out).
+    // Set sMin to 15 and vMin to 30 for high sensitivity on laptops and TVs.
+    cv::Scalar lowerHsv{60, 15, 30};
+    cv::Scalar upperHsv{125, 255, 255};
     
     int pcScreenWidth = 1920;
     int pcScreenHeight = 1080;
@@ -30,6 +31,9 @@ private:
     
     int lostTrackingFrames = 0;
     const int RELOAD_FRAME_THRESHOLD = 4;
+    
+    float lastNormX = 0.5f;
+    float lastNormY = 0.5f;
     
     // Cache for last known corners for visual debugging
     std::vector<cv::Point2f> lastDetectedCorners;
@@ -70,13 +74,9 @@ private:
     // [0] = Top-Left, [1] = Top-Right, [2] = Bottom-Right, [3] = Bottom-Left
     std::vector<cv::Point2f> SortQuadCorners(const std::vector<cv::Point2f>& pts) {
         std::vector<cv::Point2f> ordered(4);
-        // Top-Left: terkecil (u + v)
-        // Bottom-Right: terbesar (u + v)
         auto sumCompare = [](const cv::Point2f& a, const cv::Point2f& b) {
             return (a.x + a.y) < (b.x + b.y);
         };
-        // Top-Right: terkecil (v - u) -> u besar, v kecil
-        // Bottom-Left: terbesar (v - u) -> u kecil, v besar
         auto diffCompare = [](const cv::Point2f& a, const cv::Point2f& b) {
             return (a.y - a.x) < (b.y - b.x);
         };
@@ -96,8 +96,8 @@ private:
         float leftEdge = static_cast<float>(cv::norm(corners[3] - corners[0]));
         float rightEdge = static_cast<float>(cv::norm(corners[2] - corners[1]));
 
-        // Toleransi minimum panjang sisi (TV/laptop dari jarak 2-3 meter)
-        if (topEdge < 25.0f || bottomEdge < 25.0f || leftEdge < 18.0f || rightEdge < 18.0f) {
+        // Toleransi minimum panjang sisi (TV/laptop dari jarak 1.5 - 3 meter)
+        if (topEdge < 18.0f || bottomEdge < 18.0f || leftEdge < 14.0f || rightEdge < 14.0f) {
             return false;
         }
 
@@ -105,8 +105,8 @@ private:
         float avgHeight = (leftEdge + rightEdge) * 0.5f;
         float aspectRatio = avgWidth / std::max(avgHeight, 1.0f);
 
-        // Toleransi perspektif yang aman untuk landscape maupun portrait
-        return (aspectRatio >= 0.3f && aspectRatio <= 3.5f);
+        // Toleransi perspektif yang sangat aman untuk landscape maupun portrait
+        return (aspectRatio >= 0.25f && aspectRatio <= 4.0f);
     }
 
 public:
@@ -117,9 +117,12 @@ public:
     void SetHsvBoundaries(uint8_t hMin, uint8_t sMin, uint8_t vMin,
                           uint8_t hMax, uint8_t sMax, uint8_t vMax) {
         std::lock_guard<std::mutex> lock(pipelineMutex);
-        lowerHsv = cv::Scalar(hMin, sMin, vMin);
+        // Pertahankan batas minimum saturation aman untuk monitor backlight
+        uint8_t safeSMin = std::min<uint8_t>(sMin, 20);
+        uint8_t safeVMin = std::min<uint8_t>(vMin, 35);
+        lowerHsv = cv::Scalar(hMin, safeSMin, safeVMin);
         upperHsv = cv::Scalar(hMax, sMax, vMax);
-        LOGD("Updated HSV Boundaries: [%d,%d,%d] - [%d,%d,%d]", hMin, sMin, vMin, hMax, sMax, vMax);
+        LOGD("Updated HSV Boundaries: [%d,%d,%d] - [%d,%d,%d]", hMin, safeSMin, safeVMin, hMax, sMax, vMax);
     }
 
     void SetScreenDimensions(int w, int h) {
@@ -137,6 +140,8 @@ public:
         std::lock_guard<std::mutex> lock(pipelineMutex);
         smoother.reset();
         lostTrackingFrames = 0;
+        lastNormX = 0.5f;
+        lastNormY = 0.5f;
     }
 
     // Eksekusi Pipeline dari frame NV21 dengan orientasi layar tegak
@@ -156,7 +161,7 @@ public:
         // Thresholding warna border
         cv::inRange(hsv, lowerHsv, upperHsv, mask);
 
-        // MORPH_CLOSE (Dilation lalu Erosion) untuk menyambung segmen border yang terputus / tipis
+        // MORPH_CLOSE untuk menyambung segmen border tipis pada TV/laptop
         cv::Mat closeKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
         cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, closeKernel);
 
@@ -165,14 +170,12 @@ public:
 
         std::vector<cv::Point> bestQuad;
         double maxArea = 0.0;
-        // 2.5% area layar kamera (mudah mengunci TV/laptop dari jarak jauh)
-        double minRequiredArea = (static_cast<double>(frameW) * static_cast<double>(frameH)) * 0.025;
+        double minRequiredArea = (static_cast<double>(frameW) * static_cast<double>(frameH)) * 0.015;
 
         for (const auto& contour : contours) {
             double area = cv::contourArea(contour);
             if (area < minRequiredArea) continue;
 
-            // Convex Hull menyaring lekukan kecil atau gangguan bayangan di bezel monitor
             std::vector<cv::Point> hull;
             cv::convexHull(contour, hull);
 
@@ -181,8 +184,8 @@ public:
 
             double perimeter = cv::arcLength(hull, true);
 
-            // Coba multi-factor epsilon agar selalu berhasil mengekstrak tepat 4 sudut persegi
-            for (double epsFactor : {0.02, 0.025, 0.03, 0.035, 0.045, 0.06}) {
+            // Coba multi-factor epsilon
+            for (double epsFactor : {0.018, 0.025, 0.035, 0.045, 0.06}) {
                 std::vector<cv::Point> approx;
                 cv::approxPolyDP(hull, approx, epsFactor * perimeter, true);
 
@@ -196,10 +199,36 @@ public:
             }
         }
 
+        // Fallback: Jika approxPolyDP terganggu glare atau bezel, gunakan minAreaRect dari kontur terbesar!
+        if (bestQuad.empty() && !contours.empty()) {
+            double largestArea = 0.0;
+            const std::vector<cv::Point>* largestContour = nullptr;
+            for (const auto& c : contours) {
+                double a = cv::contourArea(c);
+                if (a > largestArea && a >= minRequiredArea) {
+                    largestArea = a;
+                    largestContour = &c;
+                }
+            }
+            if (largestContour != nullptr) {
+                cv::RotatedRect rRect = cv::minAreaRect(*largestContour);
+                cv::Point2f rectPts[4];
+                rRect.points(rectPts);
+                bestQuad.clear();
+                for (int i = 0; i < 4; ++i) {
+                    bestQuad.push_back(cv::Point(static_cast<int>(rectPts[i].x), static_cast<int>(rectPts[i].y)));
+                }
+                maxArea = largestArea;
+            }
+        }
+
         if (bestQuad.empty()) {
             lostTrackingFrames++;
             outFlags = 0;
             outConfidence = 0;
+            // Pertahankan posisi terakhir agar pointer tidak melompat atau membeku ke (0,0)
+            outNormX = lastNormX;
+            outNormY = lastNormY;
 
             // Jika kehilangan tracking secara konsisten, picu Off-screen reload
             if (lostTrackingFrames >= RELOAD_FRAME_THRESHOLD) {
@@ -228,6 +257,8 @@ public:
             lostTrackingFrames++;
             outFlags = LightgunFlags::LOW_CONFIDENCE;
             outConfidence = 20;
+            outNormX = lastNormX;
+            outNormY = lastNormY;
             if (outCorners != nullptr) {
                 for (int i = 0; i < 8; ++i) outCorners[i] = -1.0f;
             }
@@ -238,7 +269,6 @@ public:
         lastDetectedCorners = srcCorners;
 
         // Salin 4 sudut deteksi untuk visual preview di Kotlin SurfaceView / CornerOverlayView
-        // Dinormalisasi ke ruang tampilan tegak [0.0f .. 1.0f]
         if (outCorners != nullptr) {
             for (int i = 0; i < 4; ++i) {
                 outCorners[i * 2]     = srcCorners[i].x / static_cast<float>(dispW);
@@ -247,7 +277,6 @@ public:
         }
 
         // Koordinat target monitor PC dinormalisasi 0.0f - 1.0f
-        // [0] = Top-Left (0, 0), [1] = Top-Right (1, 0), [2] = Bottom-Right (1, 1), [3] = Bottom-Left (0, 1)
         std::vector<cv::Point2f> dstCorners = {
             cv::Point2f(0.0f, 0.0f),
             cv::Point2f(1.0f, 0.0f),
@@ -275,6 +304,8 @@ public:
 
         outNormX = std::clamp(filteredX, 0.0f, 1.0f);
         outNormY = std::clamp(filteredY, 0.0f, 1.0f);
+        lastNormX = outNormX;
+        lastNormY = outNormY;
         outFlags = LightgunFlags::TRACKING_LOCKED;
         outConfidence = 100;
     }
