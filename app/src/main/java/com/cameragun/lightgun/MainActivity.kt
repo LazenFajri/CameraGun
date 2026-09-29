@@ -324,29 +324,32 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
         val matrix = Matrix()
         val rotation = windowManager.defaultDisplay.rotation
-        val viewRect = RectF(0f, 0f, viewWidth.toFloat(), viewHeight.toFloat())
-        val bufferRect = RectF(0f, 0f, PREVIEW_HEIGHT.toFloat(), PREVIEW_WIDTH.toFloat())
-        val centerX = viewRect.centerX()
-        val centerY = viewRect.centerY()
+        val centerX = viewWidth / 2f
+        val centerY = viewHeight / 2f
 
-        if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
-            bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
-            matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
-            val scale = maxOf(
-                viewHeight.toFloat() / PREVIEW_HEIGHT,
-                viewWidth.toFloat() / PREVIEW_WIDTH
-            )
-            matrix.postScale(scale, scale, centerX, centerY)
-            matrix.postRotate((90 * (rotation - 2)).toFloat(), centerX, centerY)
+        val bufferW = PREVIEW_WIDTH.toFloat()  // 1280
+        val bufferH = PREVIEW_HEIGHT.toFloat() // 720
+
+        if (rotation == Surface.ROTATION_0) {
+            // Mode Portrait (Tegak): sensor kamera 90°
+            // Buffer setelah diputar 90° memiliki lebar 720 dan tinggi 1280
+            val scale = maxOf(viewWidth / bufferH, viewHeight / bufferW)
+            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
+            matrix.postRotate(90f, centerX, centerY)
         } else if (rotation == Surface.ROTATION_180) {
+            // Reverse Portrait
+            val scale = maxOf(viewWidth / bufferH, viewHeight / bufferW)
+            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
+            matrix.postRotate(270f, centerX, centerY)
+        } else if (rotation == Surface.ROTATION_90) {
+            // Landscape (Mendatar)
+            val scale = maxOf(viewWidth / bufferW, viewHeight / bufferH)
+            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
+        } else if (rotation == Surface.ROTATION_270) {
+            // Reverse Landscape
+            val scale = maxOf(viewWidth / bufferW, viewHeight / bufferH)
+            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
             matrix.postRotate(180f, centerX, centerY)
-        } else {
-            // Mode Portrait (ROTATION_0)
-            val scale = maxOf(
-                viewWidth.toFloat() / PREVIEW_HEIGHT,
-                viewHeight.toFloat() / PREVIEW_WIDTH
-            )
-            matrix.postScale(scale, scale, centerX, centerY)
         }
         textureView.setTransform(matrix)
     }
@@ -451,8 +454,15 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         yuv420ToNv21(image, buffer)
 
         val timestampSec = (SystemClock.elapsedRealtimeNanos() / 1_000_000_000.0).toFloat()
+        val rotation = windowManager.defaultDisplay.rotation
+        val rotationDegrees = when (rotation) {
+            Surface.ROTATION_90 -> 90
+            Surface.ROTATION_180 -> 180
+            Surface.ROTATION_270 -> 270
+            else -> 0
+        }
         val isLocked = nativeBridge.processFrameNV21(
-            buffer, width, height, timestampSec, visionResults, visionCorners
+            buffer, width, height, timestampSec, rotationDegrees, visionResults, visionCorners
         )
 
         val normX = visionResults[0]

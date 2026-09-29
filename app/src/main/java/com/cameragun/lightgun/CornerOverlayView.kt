@@ -138,10 +138,19 @@ class CornerOverlayView @JvmOverloads constructor(
     }
 
     private fun drawLockedQuad(canvas: Canvas, w: Float, h: Float) {
-        val p0x = corners[0] * w; val p0y = corners[1] * h
-        val p1x = corners[2] * w; val p1y = corners[3] * h
-        val p2x = corners[4] * w; val p2y = corners[5] * h
-        val p3x = corners[6] * w; val p3y = corners[7] * h
+        val isPortrait = w < h
+        val bufferW = if (isPortrait) 720f else 1280f
+        val bufferH = if (isPortrait) 1280f else 720f
+        val scale = maxOf(w / bufferW, h / bufferH)
+        val contentW = bufferW * scale
+        val contentH = bufferH * scale
+        val dx = (w - contentW) * 0.5f
+        val dy = (h - contentH) * 0.5f
+
+        val p0x = dx + corners[0] * contentW; val p0y = dy + corners[1] * contentH
+        val p1x = dx + corners[2] * contentW; val p1y = dy + corners[3] * contentH
+        val p2x = dx + corners[4] * contentW; val p2y = dy + corners[5] * contentH
+        val p3x = dx + corners[6] * contentW; val p3y = dy + corners[7] * contentH
 
         path.reset()
         path.moveTo(p0x, p0y)

@@ -33,8 +33,6 @@ class BluetoothTransmitter(
     private var connectedDevice: BluetoothDevice? = null
 
     private var telemetryCharacteristic: BluetoothGattCharacteristic? = null
-    private val sendQueue = ConcurrentLinkedQueue<ByteArray>()
-    @Volatile private var isSending = false
 
     var isClientConnected: Boolean = false
         private set
@@ -104,8 +102,7 @@ class BluetoothTransmitter(
             }
 
             override fun onNotificationSent(device: BluetoothDevice?, status: Int) {
-                isSending = false
-                drainQueue()
+                // Notifikasi dikirim langsung realtime tanpa antrian
             }
         }
 
@@ -219,20 +216,12 @@ class BluetoothTransmitter(
         val crc = computeCrc8(rawBytes, 15)
         rawBytes[15] = crc                           // 15: Checksum
 
-        sendQueue.offer(rawBytes)
-        if (!isSending) {
-            drainQueue()
+        try {
+            char.value = rawBytes
+            gattServer?.notifyCharacteristicChanged(device, char, false)
+        } catch (e: Exception) {
+            Log.w(TAG, "Gagal mengirim notifikasi BLE: ${e.message}")
         }
-    }
-
-    private fun drainQueue() {
-        val nextPacket = sendQueue.poll() ?: return
-        val device = connectedDevice ?: return
-        val char = telemetryCharacteristic ?: return
-
-        isSending = true
-        char.value = nextPacket
-        gattServer?.notifyCharacteristicChanged(device, char, false)
     }
 
     private fun parseConfigPacket(bytes: ByteArray) {

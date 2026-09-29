@@ -22,6 +22,7 @@ class NativeVisionBridge {
      * @param width Resolusi lebar kamera
      * @param height Resolusi tinggi kamera
      * @param timestampSec Monotonic timestamp dalam satuan detik
+     * @param rotationDegrees Derajat rotasi layar (0: Portrait, 90: Land, 180: RevPort, 270: RevLand)
      * @param outResults FloatArray(4): [0]=NormX, [1]=NormY, [2]=Flags, [3]=Confidence
      * @param outCorners FloatArray(8): [x0, y0, x1, y1, x2, y2, x3, y3] dinormalisasi 0..1 untuk preview
      */
@@ -30,6 +31,7 @@ class NativeVisionBridge {
         width: Int,
         height: Int,
         timestampSec: Float,
+        rotationDegrees: Int,
         outResults: FloatArray,
         outCorners: FloatArray
     ): Boolean
