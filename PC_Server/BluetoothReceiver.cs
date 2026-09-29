@@ -33,15 +33,22 @@ namespace CameraGun.Server
 
         public void StartBleListening()
         {
-            StatusChanged?.Invoke("Memulai pencarian BLE Peripheral Android Lightgun...");
-
-            _bleWatcher = new BluetoothLEAdvertisementWatcher
+            try
             {
-                ScanningMode = BluetoothLEScanningMode.Active
-            };
+                StatusChanged?.Invoke("Memulai pencarian BLE Peripheral Android Lightgun...");
 
-            _bleWatcher.Received += OnAdvertisementReceived;
-            _bleWatcher.Start();
+                _bleWatcher = new BluetoothLEAdvertisementWatcher
+                {
+                    ScanningMode = BluetoothLEScanningMode.Active
+                };
+
+                _bleWatcher.Received += OnAdvertisementReceived;
+                _bleWatcher.Start();
+            }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"Bluetooth: {ex.Message}");
+            }
         }
 
         private async void OnAdvertisementReceived(BluetoothLEAdvertisementWatcher watcher, BluetoothLEAdvertisementReceivedEventArgs args)

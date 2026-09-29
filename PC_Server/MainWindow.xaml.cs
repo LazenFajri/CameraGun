@@ -93,34 +93,41 @@ namespace CameraGun.Server
 
         private void InitializeBluetooth()
         {
-            _btReceiver = new BluetoothReceiver();
-
-            _btReceiver.StatusChanged += status =>
+            try
             {
-                Dispatcher.BeginInvoke(() =>
+                _btReceiver = new BluetoothReceiver();
+
+                _btReceiver.StatusChanged += status =>
                 {
-                    txtStatusMsg.Text = status;
-
-                    if (_btReceiver.IsConnected)
+                    Dispatcher.BeginInvoke(() =>
                     {
-                        txtBtStatus.Text = "CONNECTED";
-                        txtBtStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
-                        dotBt.Fill = FindResource("AccentGreen") as System.Windows.Media.Brush;
-                        badgeBt.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
-                        SyncCalibrationToAndroid();
-                    }
-                    else
-                    {
-                        txtBtStatus.Text = "SEARCHING...";
-                        txtBtStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
-                        dotBt.Fill = FindResource("AccentOrange") as System.Windows.Media.Brush;
-                        badgeBt.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
-                    }
-                });
-            };
+                        if (txtStatusMsg != null) txtStatusMsg.Text = status;
 
-            _btReceiver.PacketReceived += OnPacketReceived;
-            _btReceiver.StartBleListening();
+                        if (_btReceiver != null && _btReceiver.IsConnected)
+                        {
+                            txtBtStatus.Text = "CONNECTED";
+                            txtBtStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                            dotBt.Fill = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                            badgeBt.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                            SyncCalibrationToAndroid();
+                        }
+                        else
+                        {
+                            txtBtStatus.Text = "SEARCHING...";
+                            txtBtStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                            dotBt.Fill = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                            badgeBt.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                        }
+                    });
+                };
+
+                _btReceiver.PacketReceived += OnPacketReceived;
+                _btReceiver.StartBleListening();
+            }
+            catch (Exception ex)
+            {
+                if (txtStatusMsg != null) txtStatusMsg.Text = $"BT Error: {ex.Message}";
+            }
         }
 
         private void InitializeSystemTray()
@@ -222,6 +229,8 @@ namespace CameraGun.Server
 
         private void UpdatePointerVisualization()
         {
+            if (pointerCanvas == null || pointerDot == null || pointerRing == null || crossH == null || crossV == null) return;
+
             double cw = pointerCanvas.ActualWidth;
             double ch = pointerCanvas.ActualHeight;
             if (cw < 10 || ch < 10) return;
@@ -337,7 +346,10 @@ namespace CameraGun.Server
         {
             if (sender is System.Windows.Controls.RadioButton rb)
             {
-                txtStatusMsg.Text = $"Emulator profile: {rb.Content}";
+                if (txtStatusMsg != null)
+                {
+                    txtStatusMsg.Text = $"Emulator profile: {rb.Content}";
+                }
             }
         }
 
