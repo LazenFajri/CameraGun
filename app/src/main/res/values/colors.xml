@@ -21,6 +21,7 @@
     <color name="cyber_orange_dim">#88FF9500</color>
 
     <!-- Glass Overlays -->
+    <color name="hud_glass">#CC0A0E1A</color>
     <color name="cyber_glass_dark">#CC0A0E1A</color>
     <color name="cyber_glass_mid">#AA141B2D</color>
     <color name="cyber_glass_light">#661E2942</color>
