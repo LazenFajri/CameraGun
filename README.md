@@ -49,15 +49,16 @@ d:\CameraGun\
 │   │       ├── mipmap-*/                   # Launcher Icons (ic_launcher & ic_launcher_round)
 │   │       └── layout, values, drawable/   # PlayStation-style layout & vectors
 │   └── build.gradle.kts
-├── PC_Server\                              # Aplikasi Driver Windows (.NET 8 Desktop)
+├── PC_Server\                              # Aplikasi Driver Windows (.NET 8 WPF GUI)
 │   ├── PC_Server.csproj                    # Konfigurasi project & ApplicationIcon app.ico
 │   ├── Resources\                          # Windows Multi-Res app.ico & app.png
-│   ├── Program.cs                          # CLI Controller, HUD metrics & color sync
-│   ├── BorderOverlay.cs                    # Transparent Click-Through Border Form
+│   ├── App.xaml / App.xaml.cs              # Entry point aplikasi WPF GUI
+│   ├── MainWindow.xaml / .xaml.cs          # Dashboard Cyberpunk, Radar HUD & Color Controller
+│   ├── BorderOverlay.cs                    # Transparent Click-Through Border Form (Win32)
 │   ├── BluetoothReceiver.cs                # Windows WinRT BLE & RFCOMM Receiver
 │   ├── InputInjection.cs                   # Win32 SendInput + ViGEmBus Gamepad
 │   ├── PacketStructs.cs                    # Struct marshaling & CRC8
-│   └── app.manifest                        # PerMonitorV2 High-DPI scaling
+│   └── app.manifest                        # Windows PerMonitorV2 manifest
 ├── scripts\
 │   └── generate_icons.py                   # Script konversi logo ke ikon Android & Windows
 ├── Logo.jpg                                # Logo mentah sumber resolusi tinggi
@@ -115,34 +116,36 @@ d:\CameraGun\
 
 ## 📡 Panduan Pairing & Koneksi Pertama Kali
 
-1. **Jalankan PC Server**:
+1. **Jalankan PC Server (WPF Cyberpunk GUI)**:
    ```powershell
    cd d:\CameraGun\PC_Server
    dotnet run -c Release
    ```
-   * Window border persegi berwarna hijau neon akan langsung muncul di tepi monitor PC.
-   * Window ini bersifat **click-through** (klik mouse Anda akan tetap menembus game di baliknya).
+   * Window dashboard modern bertema Cyberpunk Dark Mode akan terbuka.
+   * Window border persegi (click-through overlay) akan muncul otomatis di tepi monitor PC.
 2. **Buka Aplikasi di HP Android**:
-   * Posisikan smartphone dalam posisi Landscape menghadap ke layar monitor PC.
-   * Aplikasi akan otomatis menyiarkan BLE Advertisement dengan nama `CameraGun-XXXX`.
+   * Posisikan smartphone Landscape menghadap layar monitor PC.
+   * Aplikasi otomatis mengaktifkan BLE Peripheral Advertisement.
 3. **Koneksi Otomatis**:
-   * PC Server akan mendeteksi HP dan melakukan koneksi GATT secara instan.
-   * Di layar HP, indikator status atas akan berubah dari `BT: DISCONNECTED` menjadi `BT: CONNECTED` (Hijau).
-   * Status di console PC akan menampilkan rate streaming aktif: `[Stream] Rate: 60-120 Hz`.
+   * PC Server akan mendeteksi HP dan menghubungkan GATT notification stream secara otomatis.
+   * Di dashboard PC: Badge Bluetooth berubah menjadi `CONNECTED` (Hijau Neon), pointer tracking radar aktif, dan rate stream menampilkan `60 - 120 Hz`.
+   * Di layar HP: HUD atas menampilkan `BT: CONNECTED` (Hijau) dan status target berubah menjadi `TARGET: LOCKED` saat 4 sudut layar terdeteksi.
 
 ---
 
-## 🎯 Panduan Kalibrasi & Mengubah Warna Border
+## 🎯 Panduan Kalibrasi & Mengubah Warna Border (GUI Visual)
 
-Jika game yang dimainkan memiliki elemen grafis warna hijau yang dominan, Anda dapat mengganti warna border secara instan langsung dari console PC:
+Di panel sebelah kiri dashboard PC Server (**Border Control**):
+* **Color Preset Buttons**: Klik tombol preset warna **C (Cyan)**, **G (Green)**, **M (Magenta)**, atau **W (White)**.
+* **Custom Hex Color**: Masukkan kode hex 6 digit (contoh: `00E5FF`, `FF0066`, `00FF44`) lalu klik tombol `SET`.
+* **Thickness Slider**: Geser slider ketebalan border (2 px - 24 px) sesuai jarak duduk dan ukuran monitor Anda.
+* **Toggle Border**: Tombol `⊘ HIDE BORDER` / `⊕ SHOW BORDER` untuk menyembunyikan border sementara.
+* **Sync to Phone**: Klik tombol `⟳ SYNC TO PHONE` untuk mengirim rentang threshold HSV dan resolusi target ke smartphone Android via Bluetooth.
 
-* Tekan **`1`** pada keyboard PC $\rightarrow$ **Neon Green (`#00FF44`)** *(Default, ideal untuk House of the Dead / Time Crisis)*.
-* Tekan **`2`** pada keyboard PC $\rightarrow$ **Electric Cyan (`#00E5FF`)** *(Ideal untuk game bernuansa gelap atau bertema darah)*.
-* Tekan **`3`** pada keyboard PC $\rightarrow$ **Vivid Magenta (`#FF0066`)** *(Ideal untuk game berlatar hutan/alam seperti Jurassic Park)*.
-* Tekan **`4`** pada keyboard PC $\rightarrow$ **Pure White (`#FFFFFF`)** *(Standar border Sinden Lightgun)*.
-* Tekan **`+`** atau **`-`** $\rightarrow$ Menambah atau mengurangi ketebalan border layar.
-
-> Begitu tombol ditekan di PC, paket `LightgunConfigPacket` langsung dikirim via Bluetooth ke HP, dan pipeline OpenCV di HP langsung menyesuaikan rentang threshold HSV tanpa jeda!
+Di panel sebelah kanan (**Settings**):
+* **Filter Min Cutoff & Beta**: Atur sensitivitas One Euro Filter untuk menghilangkan getaran tangan (*hand jitter*) tanpa menambah input latency.
+* **Emulator Profiles**: Pilih preset kontrol untuk Teknoparrot, Dolphin, PCSX2, MAME, atau RPCS3.
+* **Minimize to Tray**: Sembunyikan window dashboard ke system tray saat sedang asyik bermain game. Double-click icon tray untuk menampilkan kembali.
 
 ---
 

@@ -7,15 +7,13 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
+import android.graphics.drawable.GradientDrawable
 import android.hardware.camera2.*
 import android.media.Image
 import android.media.ImageReader
 import android.os.*
 import android.util.Log
-import android.view.MotionEvent
-import android.view.Surface
-import android.view.TextureView
-import android.view.View
+import android.view.*
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
@@ -28,7 +26,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     companion object {
         private const val TAG = "CameraGun-Main"
         private const val PERMISSIONS_REQUEST_CODE = 101
-
         private val REQUIRED_PERMISSIONS = arrayOf(
             Manifest.permission.CAMERA,
             Manifest.permission.BLUETOOTH_ADVERTISE,
@@ -43,6 +40,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private lateinit var tvTrackingStatus: TextView
     private lateinit var tvCoords: TextView
     private lateinit var tvFps: TextView
+    private lateinit var dotBt: View
 
     private val nativeBridge = NativeVisionBridge()
     private lateinit var bluetoothTransmitter: BluetoothTransmitter
@@ -53,12 +51,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private var imageReader: ImageReader? = null
     private var backgroundThread: HandlerThread? = null
     private var backgroundHandler: Handler? = null
+    private var vibrator: Vibrator? = null
 
     private val buttonMask = AtomicInteger(0)
     private var frameCount = 0
     private var lastFpsTimestamp = SystemClock.elapsedRealtime()
 
-    // Vision Reusable Buffers
     private val visionResults = FloatArray(4)
     private val visionCorners = FloatArray(8)
     private var nv21Buffer: ByteArray? = null
@@ -69,9 +67,14 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+            View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
         )
         setContentView(R.layout.activity_main)
+
+        vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
         initViews()
         setupControllerButtons()
@@ -98,40 +101,68 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         tvTrackingStatus = findViewById(R.id.tvTrackingStatus)
         tvCoords = findViewById(R.id.tvCoords)
         tvFps = findViewById(R.id.tvFps)
-
+        dotBt = findViewById(R.id.dotBt)
         textureView.surfaceTextureListener = this
+
+        // Settings gear button
+        findViewById<Button>(R.id.btnSettings).setOnClickListener {
+            vibrateLight()
+            // Future: open SettingsBottomSheet here
+        }
     }
 
     private fun setupControllerButtons() {
-        bindTouchButton(findViewById(R.id.btnTriggerL2), 1 shl 0)
-        bindTouchButton(findViewById(R.id.btnCross), 1 shl 1)
-        bindTouchButton(findViewById(R.id.btnCircle), 1 shl 2)
-        bindTouchButton(findViewById(R.id.btnSquare), 1 shl 3)
-        bindTouchButton(findViewById(R.id.btnTriangle), 1 shl 4)
-        bindTouchButton(findViewById(R.id.btnDpadUp), 1 shl 5)
-        bindTouchButton(findViewById(R.id.btnDpadDown), 1 shl 6)
-        bindTouchButton(findViewById(R.id.btnDpadLeft), 1 shl 7)
-        bindTouchButton(findViewById(R.id.btnDpadRight), 1 shl 8)
-        bindTouchButton(findViewById(R.id.btnReload), 1 shl 9)
-        bindTouchButton(findViewById(R.id.btnOptions), 1 shl 10)
-        bindTouchButton(findViewById(R.id.btnShare), 1 shl 11)
-        bindTouchButton(findViewById(R.id.btnTriggerR2), 1 shl 12)
+        // Primary controls with haptic feedback
+        bindHapticButton(findViewById(R.id.btnTriggerL2), 1 shl 0, heavy = true)
+        bindHapticButton(findViewById(R.id.btnCross), 1 shl 1)
+        bindHapticButton(findViewById(R.id.btnCircle), 1 shl 2)
+        bindHapticButton(findViewById(R.id.btnSquare), 1 shl 3)
+        bindHapticButton(findViewById(R.id.btnTriangle), 1 shl 4)
+        bindHapticButton(findViewById(R.id.btnDpadUp), 1 shl 5)
+        bindHapticButton(findViewById(R.id.btnDpadDown), 1 shl 6)
+        bindHapticButton(findViewById(R.id.btnDpadLeft), 1 shl 7)
+        bindHapticButton(findViewById(R.id.btnDpadRight), 1 shl 8)
+        bindHapticButton(findViewById(R.id.btnReload), 1 shl 9, heavy = true)
+        bindHapticButton(findViewById(R.id.btnOptions), 1 shl 10)
+        bindHapticButton(findViewById(R.id.btnShare), 1 shl 11)
+        bindHapticButton(findViewById(R.id.btnTriggerR2), 1 shl 12, heavy = true)
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun bindTouchButton(button: Button, bit: Int) {
-        button.setOnTouchListener { _, event ->
+    private fun bindHapticButton(button: Button, bit: Int, heavy: Boolean = false) {
+        button.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     buttonMask.updateAndGet { it or bit }
+                    if (heavy) vibrateHeavy() else vibrateLight()
+                    v.isPressed = true
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     buttonMask.updateAndGet { it and bit.inv() }
+                    v.isPressed = false
                     true
                 }
                 else -> false
             }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun vibrateLight() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator?.vibrate(15)
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun vibrateHeavy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+        } else {
+            vibrator?.vibrate(40)
         }
     }
 
@@ -158,11 +189,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
-        if (allPermissionsGranted()) {
-            openCamera()
-        }
+        if (allPermissionsGranted()) openCamera()
     }
-
     override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
@@ -171,7 +199,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private fun openCamera() {
         val manager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
-            val cameraId = manager.cameraIdList[0] // Back camera
+            val cameraId = manager.cameraIdList[0]
             val previewWidth = 1280
             val previewHeight = 720
 
@@ -187,19 +215,11 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                     cameraDevice = camera
                     createCameraPreviewSession()
                 }
-
-                override fun onDisconnected(camera: CameraDevice) {
-                    camera.close()
-                    cameraDevice = null
-                }
-
-                override fun onError(camera: CameraDevice, error: Int) {
-                    camera.close()
-                    cameraDevice = null
-                }
+                override fun onDisconnected(camera: CameraDevice) { camera.close(); cameraDevice = null }
+                override fun onError(camera: CameraDevice, error: Int) { camera.close(); cameraDevice = null }
             }, backgroundHandler)
         } catch (e: Exception) {
-            Log.e(TAG, "Gagal membuka kamera: ${e.message}")
+            Log.e(TAG, "Failed to open camera: ${e.message}")
         }
     }
 
@@ -213,10 +233,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             val previewRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(surface)
                 addTarget(readerSurface)
-                
-                // Kunci Auto-Exposure dan Focus ke Infinity untuk stabilitas deteksi border layar
                 set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
-                set(CaptureRequest.LENS_FOCUS_DISTANCE, 0.0f) // Focus infinity
+                set(CaptureRequest.LENS_FOCUS_DISTANCE, 0.0f)
                 set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
                 set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, android.util.Range(60, 60))
             }
@@ -229,18 +247,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                         try {
                             session.setRepeatingRequest(previewRequestBuilder.build(), null, backgroundHandler)
                         } catch (e: CameraAccessException) {
-                            Log.e(TAG, "Gagal memulai request preview kamera: ${e.message}")
+                            Log.e(TAG, "Camera preview failed: ${e.message}")
                         }
                     }
-
                     override fun onConfigureFailed(session: CameraCaptureSession) {
-                        Log.e(TAG, "Konfigurasi kamera gagal")
+                        Log.e(TAG, "Camera session config failed")
                     }
-                },
-                backgroundHandler
+                }, backgroundHandler
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error saat inisialisasi session kamera: ${e.message}")
+            Log.e(TAG, "Error creating camera session: ${e.message}")
         }
     }
 
@@ -252,7 +268,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         if (nv21Buffer == null || nv21Buffer!!.size != totalNv21Bytes) {
             nv21Buffer = ByteArray(totalNv21Bytes)
         }
-
         val buffer = nv21Buffer!!
         yuv420ToNv21(image, buffer)
 
@@ -270,7 +285,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val roll = sensorsManager.roll
         val timestampMs = (SystemClock.elapsedRealtime() and 0xFFFF).toInt()
 
-        // Kirim packet BLE ke Windows Driver
         bluetoothTransmitter.sendTelemetry(
             normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
         )
@@ -283,21 +297,34 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             frameCount = 0
             lastFpsTimestamp = now
             runOnUiThread {
-                tvFps.text = "FPS: $fps"
-                tvBtStatus.text = if (bluetoothTransmitter.isClientConnected) {
-                    getString(R.string.bt_connected)
-                } else {
-                    getString(R.string.bt_disconnected)
-                }
-                tvBtStatus.setTextColor(if (bluetoothTransmitter.isClientConnected) 0xFF00FF66.toInt() else 0xFFFFAA00.toInt())
+                tvFps.text = "$fps FPS"
+                updateBtStatusUI()
             }
         }
 
         runOnUiThread {
             cornerOverlay.updateCorners(visionCorners, isLocked)
-            tvTrackingStatus.text = if (isLocked) getString(R.string.tracking_locked) else getString(R.string.tracking_lost)
-            tvTrackingStatus.setTextColor(if (isLocked) 0xFF00FF66.toInt() else 0xFFFF3333.toInt())
+            if (isLocked) {
+                tvTrackingStatus.text = getString(R.string.tracking_locked)
+                tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
+            } else {
+                tvTrackingStatus.text = getString(R.string.tracking_lost)
+                tvTrackingStatus.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
+            }
             tvCoords.text = String.format("X: %.3f | Y: %.3f", normX, normY)
+        }
+    }
+
+    private fun updateBtStatusUI() {
+        val connected = bluetoothTransmitter.isClientConnected
+        tvBtStatus.text = if (connected) getString(R.string.bt_connected) else getString(R.string.bt_disconnected)
+        val statusColor = if (connected) R.color.cyber_green else R.color.cyber_orange
+        tvBtStatus.setTextColor(ContextCompat.getColor(this, statusColor))
+
+        // Update dot indicator color
+        val dotDrawable = dotBt.background
+        if (dotDrawable is GradientDrawable) {
+            dotDrawable.setColor(ContextCompat.getColor(this, statusColor))
         }
     }
 
@@ -305,15 +332,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val yPlane = image.planes[0]
         val uPlane = image.planes[1]
         val vPlane = image.planes[2]
-
         val yBuffer = yPlane.buffer
         val uBuffer = uPlane.buffer
         val vBuffer = vPlane.buffer
-
         val width = image.width
         val height = image.height
 
-        // 1. Salin bidang Y
         val yRowStride = yPlane.rowStride
         val yPixelStride = yPlane.pixelStride
         var pos = 0
@@ -329,7 +353,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             }
         }
 
-        // 2. Interleave bidang V dan U menjadi NV21 (VU order)
         val uvHeight = height / 2
         val uvWidth = width / 2
         val vRowStride = vPlane.rowStride
@@ -341,10 +364,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             val vRowStart = row * vRowStride
             val uRowStart = row * uRowStride
             for (col in 0 until uvWidth) {
-                val vVal = vBuffer.get(vRowStart + col * vPixelStride)
-                val uVal = uBuffer.get(uRowStart + col * uPixelStride)
-                nv21[pos++] = vVal
-                nv21[pos++] = uVal
+                nv21[pos++] = vBuffer.get(vRowStart + col * vPixelStride)
+                nv21[pos++] = uBuffer.get(uRowStart + col * uPixelStride)
             }
         }
     }
@@ -359,11 +380,9 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         requestCode: Int, permissions: Array<String>, grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSIONS_REQUEST_CODE) {
-            if (allPermissionsGranted()) {
-                startSystems()
-                if (textureView.isAvailable) openCamera()
-            }
+        if (requestCode == PERMISSIONS_REQUEST_CODE && allPermissionsGranted()) {
+            startSystems()
+            if (textureView.isAvailable) openCamera()
         }
     }
 

@@ -1,0 +1,464 @@
+<Window x:Class="CameraGun.Server.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CameraGun AI Server"
+        Width="960" Height="640"
+        MinWidth="800" MinHeight="500"
+        WindowStyle="None"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip"
+        Background="Transparent">
+
+    <Window.Resources>
+        <!-- ========= BRUSH PALETTE ========= -->
+        <SolidColorBrush x:Key="BgDark" Color="#0A0E1A"/>
+        <SolidColorBrush x:Key="BgSurface" Color="#141B2D"/>
+        <SolidColorBrush x:Key="BgCard" Color="#1A2138"/>
+        <SolidColorBrush x:Key="BorderDim" Color="#1E2942"/>
+        <SolidColorBrush x:Key="AccentCyan" Color="#00E5FF"/>
+        <SolidColorBrush x:Key="AccentGreen" Color="#00FF66"/>
+        <SolidColorBrush x:Key="AccentMagenta" Color="#FF0066"/>
+        <SolidColorBrush x:Key="AccentOrange" Color="#FF9500"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#E8ECF4"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#7A8599"/>
+        <SolidColorBrush x:Key="DangerRed" Color="#FF4444"/>
+
+        <!-- ========= SECTION HEADER ========= -->
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentCyan}"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="LetterSpacing" Value="0"/>
+        </Style>
+
+        <!-- ========= LABEL ========= -->
+        <Style x:Key="ParamLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="Margin" Value="0,8,0,4"/>
+        </Style>
+
+        <!-- ========= CYBER BUTTON ========= -->
+        <Style x:Key="CyberButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource BgCard}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderDim}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentCyan}"/>
+                                <Setter TargetName="bd" Property="Background" Value="#1E2D45"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#0C3A4A"/>
+                                <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource AccentGreen}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ========= COLOR PRESET BUTTON ========= -->
+        <Style x:Key="ColorPresetBtn" TargetType="Button">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}"
+                                CornerRadius="8" BorderThickness="2"
+                                BorderBrush="{StaticResource BorderDim}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="BorderBrush" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ========= SLIDER TEMPLATE ========= -->
+        <Style x:Key="CyberSlider" TargetType="Slider">
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid VerticalAlignment="Center">
+                            <Track x:Name="PART_Track">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="4" CornerRadius="2" Background="{StaticResource AccentCyan}"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="4" CornerRadius="2" Background="{StaticResource BorderDim}"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb>
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Ellipse Width="16" Height="16" Fill="{StaticResource AccentCyan}"
+                                                         Stroke="{StaticResource BgDark}" StrokeThickness="2"/>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ========= TITLE BAR BUTTON ========= -->
+        <Style x:Key="TitleBarBtn" TargetType="Button">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="bd" Property="Background" Value="#2A3050"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- =============== MAIN CONTAINER =============== -->
+    <Border CornerRadius="10" BorderThickness="1" BorderBrush="{StaticResource BorderDim}">
+        <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#0A0E1A" Offset="0"/>
+                <GradientStop Color="#111827" Offset="1"/>
+            </LinearGradientBrush>
+        </Border.Background>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="30"/>
+            </Grid.RowDefinitions>
+
+            <!-- =============== TITLE BAR =============== -->
+            <Border Grid.Row="0" Background="#0D1220" CornerRadius="10,10,0,0"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="14,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="⊕" FontSize="18" Foreground="{StaticResource AccentCyan}" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="CAMERAGUN" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center"/>
+                        <TextBlock Text=" AI SERVER" FontSize="13" FontWeight="Light" Foreground="{StaticResource TextSecondary}" VerticalAlignment="Center"/>
+
+                        <Border x:Name="badgeBt" Margin="24,0,0,0" CornerRadius="10" Padding="10,3" VerticalAlignment="Center"
+                                Background="#1A2138" BorderBrush="{StaticResource AccentOrange}" BorderThickness="1">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse x:Name="dotBt" Width="8" Height="8" Fill="{StaticResource AccentOrange}" Margin="0,0,6,0"/>
+                                <TextBlock x:Name="txtBtStatus" Text="SEARCHING..." FontSize="10" Foreground="{StaticResource AccentOrange}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border x:Name="badgeVigem" Margin="8,0,0,0" CornerRadius="10" Padding="10,3" VerticalAlignment="Center"
+                                Background="#1A2138" BorderBrush="{StaticResource BorderDim}" BorderThickness="1">
+                            <TextBlock x:Name="txtVigemStatus" Text="ViGEm: —" FontSize="10" Foreground="{StaticResource TextSecondary}"/>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Style="{StaticResource TitleBarBtn}" Content="—" Click="BtnMinimize_Click"/>
+                        <Button Style="{StaticResource TitleBarBtn}" Content="□" Click="BtnMaximize_Click" Margin="2,0"/>
+                        <Button x:Name="btnClose" Style="{StaticResource TitleBarBtn}" Content="✕" Click="BtnClose_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- =============== MAIN CONTENT =============== -->
+            <Grid Grid.Row="1" Margin="14,10,14,6">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="250"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="250"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- ======= LEFT PANEL: BORDER CONTROL ======= -->
+                <Border Grid.Column="0" Background="{StaticResource BgSurface}" CornerRadius="8"
+                        BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Margin="0,0,7,0" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="⬡ BORDER CONTROL" Style="{StaticResource SectionHeader}"/>
+
+                        <TextBlock Text="COLOR PRESETS" Style="{StaticResource ParamLabel}" Margin="0,0,0,6"/>
+                        <UniformGrid Rows="1" Columns="4" Margin="0,0,0,12">
+                            <Button Style="{StaticResource ColorPresetBtn}" Background="#00E5FF" Tag="#00E5FF"
+                                    Click="PresetColor_Click" ToolTip="Electric Cyan" Margin="0,0,4,0">
+                                <TextBlock Text="C" FontWeight="Bold" FontSize="13" Foreground="#0A0E1A"/>
+                            </Button>
+                            <Button Style="{StaticResource ColorPresetBtn}" Background="#00FF66" Tag="#00FF66"
+                                    Click="PresetColor_Click" ToolTip="Neon Green" Margin="0,0,4,0">
+                                <TextBlock Text="G" FontWeight="Bold" FontSize="13" Foreground="#0A0E1A"/>
+                            </Button>
+                            <Button Style="{StaticResource ColorPresetBtn}" Background="#FF0066" Tag="#FF0066"
+                                    Click="PresetColor_Click" ToolTip="Vivid Magenta" Margin="0,0,4,0">
+                                <TextBlock Text="M" FontWeight="Bold" FontSize="13" Foreground="White"/>
+                            </Button>
+                            <Button Style="{StaticResource ColorPresetBtn}" Background="White" Tag="#FFFFFF"
+                                    Click="PresetColor_Click" ToolTip="Pure White">
+                                <TextBlock Text="W" FontWeight="Bold" FontSize="13" Foreground="#0A0E1A"/>
+                            </Button>
+                        </UniformGrid>
+
+                        <TextBlock Text="CUSTOM HEX" Style="{StaticResource ParamLabel}"/>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="#" Foreground="{StaticResource TextSecondary}" FontSize="13"
+                                       VerticalAlignment="Center" Margin="0,0,4,0"/>
+                            <TextBox x:Name="txtHexColor" Grid.Column="1" Text="00E5FF" MaxLength="6"
+                                     Background="{StaticResource BgCard}" Foreground="{StaticResource TextPrimary}"
+                                     BorderBrush="{StaticResource BorderDim}" BorderThickness="1"
+                                     Padding="6,4" FontSize="12" FontFamily="Consolas"
+                                     VerticalContentAlignment="Center"/>
+                            <Button Grid.Column="2" Content="SET" Style="{StaticResource CyberButton}"
+                                    Padding="10,4" FontSize="10" Margin="4,0,0,0"
+                                    Click="BtnApplyHex_Click"/>
+                        </Grid>
+
+                        <Border x:Name="colorPreview" Height="8" CornerRadius="4" Margin="0,0,0,14">
+                            <Border.Background>
+                                <SolidColorBrush x:Name="previewBrush" Color="#00E5FF"/>
+                            </Border.Background>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource ParamLabel}">
+                            <Run Text="THICKNESS: "/><Run x:Name="txtThicknessVal" Text="12" Foreground="{StaticResource AccentCyan}"/><Run Text=" px"/>
+                        </TextBlock>
+                        <Slider x:Name="sliderThickness" Style="{StaticResource CyberSlider}"
+                                Minimum="2" Maximum="24" Value="12" IsSnapToTickEnabled="True" TickFrequency="1"
+                                ValueChanged="SliderThickness_Changed" Margin="0,0,0,14"/>
+
+                        <Button x:Name="btnToggleBorder" Style="{StaticResource CyberButton}"
+                                Content="⊘  HIDE BORDER" Click="BtnToggleBorder_Click" Margin="0,0,0,8"
+                                HorizontalAlignment="Stretch"/>
+
+                        <Button Style="{StaticResource CyberButton}" Content="⟳  SYNC TO PHONE"
+                                Click="BtnSyncCalibration_Click" HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ======= CENTER PANEL: LIVE DASHBOARD ======= -->
+                <Border Grid.Column="1" Background="{StaticResource BgSurface}" CornerRadius="8"
+                        BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Margin="0" Padding="14">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Text="◎ LIVE TRACKING" Style="{StaticResource SectionHeader}"/>
+
+                        <!-- Pointer Visualization Canvas -->
+                        <Border Grid.Row="1" Background="{StaticResource BgCard}" CornerRadius="6"
+                                BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Margin="0,0,0,10">
+                            <Grid>
+                                <Canvas x:Name="pointerCanvas" ClipToBounds="True">
+                                    <!-- Crosshair lines -->
+                                    <Line x:Name="crossH" Stroke="#30FFFFFF" StrokeThickness="1"
+                                          StrokeDashArray="4,4"/>
+                                    <Line x:Name="crossV" Stroke="#30FFFFFF" StrokeThickness="1"
+                                          StrokeDashArray="4,4"/>
+                                    <!-- Pointer dot -->
+                                    <Ellipse x:Name="pointerDot" Width="14" Height="14" StrokeThickness="2">
+                                        <Ellipse.Fill>
+                                            <RadialGradientBrush>
+                                                <GradientStop Color="#00E5FF" Offset="0"/>
+                                                <GradientStop Color="#0080A0" Offset="1"/>
+                                            </RadialGradientBrush>
+                                        </Ellipse.Fill>
+                                        <Ellipse.Stroke>
+                                            <SolidColorBrush Color="#00E5FF"/>
+                                        </Ellipse.Stroke>
+                                    </Ellipse>
+                                    <!-- Pointer ring -->
+                                    <Ellipse x:Name="pointerRing" Width="30" Height="30"
+                                             Stroke="#4000E5FF" StrokeThickness="1" Fill="Transparent"/>
+                                </Canvas>
+
+                                <!-- Coordinate HUD overlay -->
+                                <StackPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="10">
+                                    <TextBlock x:Name="txtCoordX" Text="X: 0.0000" FontFamily="Consolas"
+                                               FontSize="13" Foreground="{StaticResource AccentCyan}"/>
+                                    <TextBlock x:Name="txtCoordY" Text="Y: 0.0000" FontFamily="Consolas"
+                                               FontSize="13" Foreground="{StaticResource AccentGreen}"/>
+                                    <TextBlock x:Name="txtConfidence" Text="CONF: 0%" FontFamily="Consolas"
+                                               FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <!-- Tracking Status -->
+                                <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10"
+                                        CornerRadius="6" Padding="8,4" Background="#200A0E1A">
+                                    <TextBlock x:Name="txtTrackingBadge" Text="● NO SIGNAL" FontSize="11"
+                                               FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Bottom Stats Row -->
+                        <Grid Grid.Row="2">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Active Buttons -->
+                            <Border Grid.Column="0" Background="{StaticResource BgCard}" CornerRadius="6" Padding="8,6" Margin="0,0,4,0">
+                                <StackPanel>
+                                    <TextBlock Text="BUTTONS" FontSize="9" Foreground="{StaticResource TextSecondary}" Margin="0,0,0,4"/>
+                                    <WrapPanel x:Name="panelButtons">
+                                        <Border x:Name="indL2" Width="26" Height="18" CornerRadius="3" Background="{StaticResource BorderDim}" Margin="1">
+                                            <TextBlock Text="L2" FontSize="8" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border x:Name="indR2" Width="26" Height="18" CornerRadius="3" Background="{StaticResource BorderDim}" Margin="1">
+                                            <TextBlock Text="R2" FontSize="8" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border x:Name="indCross" Width="26" Height="18" CornerRadius="3" Background="{StaticResource BorderDim}" Margin="1">
+                                            <TextBlock Text="✖" FontSize="8" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border x:Name="indCircle" Width="26" Height="18" CornerRadius="3" Background="{StaticResource BorderDim}" Margin="1">
+                                            <TextBlock Text="●" FontSize="8" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <Border x:Name="indReload" Width="36" Height="18" CornerRadius="3" Background="{StaticResource BorderDim}" Margin="1">
+                                            <TextBlock Text="RLD" FontSize="8" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Stream Rate -->
+                            <Border Grid.Column="1" Background="{StaticResource BgCard}" CornerRadius="6" Padding="8,6" Margin="4,0">
+                                <StackPanel HorizontalAlignment="Center">
+                                    <TextBlock Text="STREAM" FontSize="9" Foreground="{StaticResource TextSecondary}" HorizontalAlignment="Center"/>
+                                    <TextBlock x:Name="txtStreamRate" Text="0 Hz" FontSize="20" FontWeight="Bold"
+                                               Foreground="{StaticResource AccentCyan}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Gyro/Tilt -->
+                            <Border Grid.Column="2" Background="{StaticResource BgCard}" CornerRadius="6" Padding="8,6" Margin="4,0,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="IMU TILT" FontSize="9" Foreground="{StaticResource TextSecondary}"/>
+                                    <TextBlock x:Name="txtPitch" Text="P: 0°" FontSize="11" FontFamily="Consolas" Foreground="{StaticResource TextPrimary}"/>
+                                    <TextBlock x:Name="txtRoll" Text="R: 0°" FontSize="11" FontFamily="Consolas" Foreground="{StaticResource TextPrimary}"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+                </Border>
+
+                <!-- ======= RIGHT PANEL: SETTINGS ======= -->
+                <Border Grid.Column="2" Background="{StaticResource BgSurface}" CornerRadius="8"
+                        BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Margin="7,0,0,0" Padding="14">
+                    <StackPanel>
+                        <TextBlock Text="⚙ SETTINGS" Style="{StaticResource SectionHeader}"/>
+
+                        <TextBlock Style="{StaticResource ParamLabel}">
+                            <Run Text="FILTER MIN CUTOFF: "/><Run x:Name="txtCutoffVal" Text="1.20" Foreground="{StaticResource AccentCyan}"/><Run Text=" Hz"/>
+                        </TextBlock>
+                        <Slider x:Name="sliderCutoff" Style="{StaticResource CyberSlider}"
+                                Minimum="0.5" Maximum="5.0" Value="1.2"
+                                ValueChanged="SliderCutoff_Changed" Margin="0,0,0,6"/>
+
+                        <TextBlock Style="{StaticResource ParamLabel}">
+                            <Run Text="FILTER BETA: "/><Run x:Name="txtBetaVal" Text="0.050" Foreground="{StaticResource AccentCyan}"/>
+                        </TextBlock>
+                        <Slider x:Name="sliderBeta" Style="{StaticResource CyberSlider}"
+                                Minimum="0.001" Maximum="0.5" Value="0.05"
+                                ValueChanged="SliderBeta_Changed" Margin="0,0,0,14"/>
+
+                        <TextBlock Text="EMULATOR PROFILE" Style="{StaticResource ParamLabel}" Margin="0,4,0,6"/>
+                        <StackPanel x:Name="panelProfiles">
+                            <RadioButton x:Name="rbTekno" Content=" Teknoparrot / Arcade" IsChecked="True"
+                                         Foreground="{StaticResource TextPrimary}" FontSize="11" Margin="0,3"
+                                         GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
+                            <RadioButton Content=" Dolphin (Wii Pointer)" Foreground="{StaticResource TextPrimary}"
+                                         FontSize="11" Margin="0,3" GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
+                            <RadioButton Content=" PCSX2 (GunCon 2)" Foreground="{StaticResource TextPrimary}"
+                                         FontSize="11" Margin="0,3" GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
+                            <RadioButton Content=" MAME Lightgun" Foreground="{StaticResource TextPrimary}"
+                                         FontSize="11" Margin="0,3" GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
+                            <RadioButton Content=" RPCS3 / RetroArch" Foreground="{StaticResource TextPrimary}"
+                                         FontSize="11" Margin="0,3" GroupName="EmulatorProfile" Checked="EmulatorProfile_Changed"/>
+                        </StackPanel>
+
+                        <Separator Background="{StaticResource BorderDim}" Margin="0,12"/>
+
+                        <Button x:Name="btnVigemDownload" Style="{StaticResource CyberButton}"
+                                Content="↗ DOWNLOAD ViGEmBus" Click="BtnVigemDownload_Click"
+                                HorizontalAlignment="Stretch" Margin="0,8,0,6"/>
+
+                        <Button Style="{StaticResource CyberButton}"
+                                Content="⊟  MINIMIZE TO TRAY" Click="BtnMinToTray_Click"
+                                HorizontalAlignment="Stretch"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- =============== STATUS BAR =============== -->
+            <Border Grid.Row="2" Background="#0D1220" CornerRadius="0,0,10,10" Padding="14,0">
+                <Grid>
+                    <TextBlock VerticalAlignment="Center" FontSize="10" Foreground="{StaticResource TextSecondary}">
+                        <Run Text="CameraGun AI v1.0.0"/>
+                        <Run Text="  ·  "/>
+                        <Run Text="Sinden Lightgun Clone"/>
+                        <Run Text="  ·  "/>
+                        <Run x:Name="txtStatusMsg" Text="Initializing..." Foreground="{StaticResource AccentCyan}"/>
+                    </TextBlock>
+                    <TextBlock x:Name="txtClock" VerticalAlignment="Center" HorizontalAlignment="Right"
+                               FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondary}"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>
