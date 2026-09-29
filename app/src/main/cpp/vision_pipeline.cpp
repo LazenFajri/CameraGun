@@ -76,8 +76,10 @@ private:
         float avgHeight = (leftEdge + rightEdge) * 0.5f;
         float aspectRatio = avgWidth / std::max(avgHeight, 1.0f);
 
-        // Aspect ratio layar monitor umumnya 4:3 (1.33) hingga 21:9 (2.33), toleransi perspektif 0.8 - 3.0
-        return (aspectRatio >= 0.8f && aspectRatio <= 3.2f);
+        // Aspect ratio layar monitor umumnya 4:3 (1.33) hingga 21:9 (2.33).
+        // Dalam mode portrait (rotasi 90 derajat), rasio menjadi 0.43 - 0.75.
+        // Toleransi perspektif yang aman untuk landscape maupun portrait: 0.35 - 3.5
+        return (aspectRatio >= 0.35f && aspectRatio <= 3.5f);
     }
 
 public:

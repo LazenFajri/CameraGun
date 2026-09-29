@@ -5,7 +5,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.ImageFormat
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.graphics.SurfaceTexture
 import android.graphics.drawable.GradientDrawable
 import android.hardware.camera2.*
@@ -32,6 +35,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             Manifest.permission.BLUETOOTH_CONNECT,
             Manifest.permission.ACCESS_FINE_LOCATION
         )
+        private const val PREFS_NAME = "cameragun_prefs"
+        private const val KEY_PORTRAIT = "pref_is_portrait"
+        private const val PREVIEW_WIDTH = 1280
+        private const val PREVIEW_HEIGHT = 720
     }
 
     private lateinit var textureView: TextureView
@@ -63,7 +70,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+
+        // Read orientation preference (default: Landscape)
+        val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isPortrait = prefs.getBoolean(KEY_PORTRAIT, false)
+        requestedOrientation = if (isPortrait) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
@@ -86,6 +102,17 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             nativeBridge.updateHsvBoundaries(hMin, sMin, vMin, hMax, sMax, vMax)
             nativeBridge.initVision(w, h)
         }
+        bluetoothTransmitter.onStatusChanged = { statusText, isConnected ->
+            runOnUiThread {
+                tvBtStatus.text = "BT: $statusText"
+                val statusColor = if (isConnected) R.color.cyber_green else R.color.cyber_orange
+                tvBtStatus.setTextColor(ContextCompat.getColor(this, statusColor))
+                val dotDrawable = dotBt.background
+                if (dotDrawable is GradientDrawable) {
+                    dotDrawable.setColor(ContextCompat.getColor(this, statusColor))
+                }
+            }
+        }
 
         if (allPermissionsGranted()) {
             startSystems()
@@ -94,6 +121,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun initViews() {
         textureView = findViewById(R.id.cameraPreview)
         cornerOverlay = findViewById(R.id.cornerOverlay)
@@ -104,24 +132,46 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         dotBt = findViewById(R.id.dotBt)
         textureView.surfaceTextureListener = this
 
+        // Tap to focus on preview screen
+        textureView.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_UP) {
+                triggerAutoFocus()
+            }
+            false
+        }
+
+        // Orientation toggle button (Landscape <-> Portrait)
+        findViewById<Button>(R.id.btnToggleOrientation)?.setOnClickListener {
+            vibrateLight()
+            val currentOrientation = resources.configuration.orientation
+            val newIsPortrait = currentOrientation != Configuration.ORIENTATION_PORTRAIT
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_PORTRAIT, newIsPortrait).apply()
+            requestedOrientation = if (newIsPortrait) {
+                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+        }
+
         // Tutorial / Help button & modal overlay
         val layoutTutorial = findViewById<View>(R.id.layoutTutorial)
-        findViewById<Button>(R.id.btnHelp).setOnClickListener {
+        findViewById<Button>(R.id.btnHelp)?.setOnClickListener {
             vibrateLight()
-            layoutTutorial.visibility = View.VISIBLE
+            layoutTutorial?.visibility = View.VISIBLE
         }
-        findViewById<Button>(R.id.btnCloseTutorial).setOnClickListener {
+        findViewById<Button>(R.id.btnCloseTutorial)?.setOnClickListener {
             vibrateLight()
-            layoutTutorial.visibility = View.GONE
+            layoutTutorial?.visibility = View.GONE
         }
-        findViewById<Button>(R.id.btnGotIt).setOnClickListener {
+        findViewById<Button>(R.id.btnGotIt)?.setOnClickListener {
             vibrateLight()
-            layoutTutorial.visibility = View.GONE
+            layoutTutorial?.visibility = View.GONE
         }
     }
 
     private fun setupControllerButtons() {
-        // Primary controls with haptic feedback
+        // Primary controls with safe haptic feedback
         bindHapticButton(findViewById(R.id.btnTriggerL2), 1 shl 0, heavy = true)
         bindHapticButton(findViewById(R.id.btnCross), 1 shl 1)
         bindHapticButton(findViewById(R.id.btnCircle), 1 shl 2)
@@ -138,7 +188,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun bindHapticButton(button: Button, bit: Int, heavy: Boolean = false) {
+    private fun bindHapticButton(button: Button?, bit: Int, heavy: Boolean = false) {
+        button ?: return
         button.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
@@ -159,19 +210,27 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     @Suppress("DEPRECATION")
     private fun vibrateLight() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            vibrator?.vibrate(15)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(15, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vibrator?.vibrate(15)
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "vibrateLight error: ${e.message}")
         }
     }
 
     @Suppress("DEPRECATION")
     private fun vibrateHeavy() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            vibrator?.vibrate(40)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(40, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                vibrator?.vibrate(40)
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "vibrateHeavy error: ${e.message}")
         }
     }
 
@@ -198,21 +257,68 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     }
 
     override fun onSurfaceTextureAvailable(surface: SurfaceTexture, width: Int, height: Int) {
+        configureTransform(width, height)
         if (allPermissionsGranted()) openCamera()
     }
-    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {}
+
+    override fun onSurfaceTextureSizeChanged(surface: SurfaceTexture, width: Int, height: Int) {
+        configureTransform(width, height)
+    }
+
     override fun onSurfaceTextureDestroyed(surface: SurfaceTexture): Boolean = true
     override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {}
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        textureView.post {
+            configureTransform(textureView.width, textureView.height)
+        }
+    }
+
+    /**
+     * Mengatur Matrix Transform pada TextureView agar rasio kamera 16:9 tetap proporsional
+     * (tidak gepeng / terdistorsi) pada layar HP ultra-wide (20:9 atau 21:9),
+     * baik dalam mode Landscape maupun Portrait.
+     */
+    private fun configureTransform(viewWidth: Int, viewHeight: Int) {
+        if (viewWidth == 0 || viewHeight == 0) return
+
+        val matrix = Matrix()
+        val rotation = windowManager.defaultDisplay.rotation
+        val viewRect = RectF(0f, 0f, viewWidth.toFloat(), viewHeight.toFloat())
+        val bufferRect = RectF(0f, 0f, PREVIEW_HEIGHT.toFloat(), PREVIEW_WIDTH.toFloat())
+        val centerX = viewRect.centerX()
+        val centerY = viewRect.centerY()
+
+        if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
+            bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
+            matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
+            val scale = maxOf(
+                viewHeight.toFloat() / PREVIEW_HEIGHT,
+                viewWidth.toFloat() / PREVIEW_WIDTH
+            )
+            matrix.postScale(scale, scale, centerX, centerY)
+            matrix.postRotate((90 * (rotation - 2)).toFloat(), centerX, centerY)
+        } else if (rotation == Surface.ROTATION_180) {
+            matrix.postRotate(180f, centerX, centerY)
+        } else {
+            // Mode Portrait (ROTATION_0)
+            val scale = maxOf(
+                viewWidth.toFloat() / PREVIEW_HEIGHT,
+                viewHeight.toFloat() / PREVIEW_WIDTH
+            )
+            matrix.postScale(scale, scale, centerX, centerY)
+        }
+        textureView.setTransform(matrix)
+    }
 
     @SuppressLint("MissingPermission")
     private fun openCamera() {
         val manager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         try {
             val cameraId = manager.cameraIdList[0]
-            val previewWidth = 1280
-            val previewHeight = 720
 
-            imageReader = ImageReader.newInstance(previewWidth, previewHeight, ImageFormat.YUV_420_888, 3)
+            imageReader = ImageReader.newInstance(PREVIEW_WIDTH, PREVIEW_HEIGHT, ImageFormat.YUV_420_888, 3)
             imageReader?.setOnImageAvailableListener({ reader ->
                 val image = reader.acquireLatestImage() ?: return@setOnImageAvailableListener
                 processCameraFrame(image)
@@ -235,17 +341,19 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private fun createCameraPreviewSession() {
         try {
             val texture = textureView.surfaceTexture ?: return
-            texture.setDefaultBufferSize(1280, 720)
+            texture.setDefaultBufferSize(PREVIEW_WIDTH, PREVIEW_HEIGHT)
             val surface = Surface(texture)
             val readerSurface = imageReader!!.surface
 
             val previewRequestBuilder = cameraDevice!!.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(surface)
                 addTarget(readerSurface)
-                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
-                set(CaptureRequest.LENS_FOCUS_DISTANCE, 0.0f)
+
+                // Continuous Auto-Focus (Aktif & Tajam Otomatis pada monitor)
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
+                // Auto Exposure & Auto White Balance
                 set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON)
-                set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, android.util.Range(60, 60))
+                set(CaptureRequest.CONTROL_AWB_MODE, CaptureRequest.CONTROL_AWB_MODE_AUTO)
             }
 
             cameraDevice?.createCaptureSession(
@@ -255,6 +363,9 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                         captureSession = session
                         try {
                             session.setRepeatingRequest(previewRequestBuilder.build(), null, backgroundHandler)
+                            runOnUiThread {
+                                configureTransform(textureView.width, textureView.height)
+                            }
                         } catch (e: CameraAccessException) {
                             Log.e(TAG, "Camera preview failed: ${e.message}")
                         }
@@ -266,6 +377,26 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error creating camera session: ${e.message}")
+        }
+    }
+
+    /**
+     * Tap to focus manual pada area layar monitor
+     */
+    private fun triggerAutoFocus() {
+        try {
+            val session = captureSession ?: return
+            val requestBuilder = cameraDevice?.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)?.apply {
+                val surface = Surface(textureView.surfaceTexture ?: return)
+                addTarget(surface)
+                val readerSurf = imageReader?.surface ?: return
+                addTarget(readerSurf)
+                set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_AUTO)
+                set(CaptureRequest.CONTROL_AF_TRIGGER, CaptureRequest.CONTROL_AF_TRIGGER_START)
+            } ?: return
+            session.capture(requestBuilder.build(), null, backgroundHandler)
+        } catch (e: Exception) {
+            Log.w(TAG, "AutoFocus trigger failed: ${e.message}")
         }
     }
 
@@ -330,7 +461,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val statusColor = if (connected) R.color.cyber_green else R.color.cyber_orange
         tvBtStatus.setTextColor(ContextCompat.getColor(this, statusColor))
 
-        // Update dot indicator color
         val dotDrawable = dotBt.background
         if (dotDrawable is GradientDrawable) {
             dotDrawable.setColor(ContextCompat.getColor(this, statusColor))

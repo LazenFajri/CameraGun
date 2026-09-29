@@ -39,14 +39,18 @@ class BluetoothTransmitter(
     var isClientConnected: Boolean = false
         private set
 
-    fun start() {
+    var onStatusChanged: ((String, Boolean) -> Unit)? = null
+
+    fun start(): Boolean {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {
             Log.e(TAG, "Bluetooth tidak aktif atau tidak didukung pada perangkat ini.")
-            return
+            onStatusChanged?.invoke("BT OFF", false)
+            return false
         }
 
         setupGattServer()
         startAdvertising()
+        return true
     }
 
     private fun setupGattServer() {
@@ -56,10 +60,12 @@ class BluetoothTransmitter(
                     Log.i(TAG, "PC Client terhubung: ${device.address}")
                     connectedDevice = device
                     isClientConnected = true
+                    onStatusChanged?.invoke("CONNECTED", true)
                 } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.i(TAG, "PC Client terputus: ${device.address}")
                     connectedDevice = null
                     isClientConnected = false
+                    onStatusChanged?.invoke("DISCONNECTED", false)
                 }
             }
 
@@ -133,6 +139,7 @@ class BluetoothTransmitter(
         advertiser = bluetoothAdapter?.bluetoothLeAdvertiser
         if (advertiser == null) {
             Log.e(TAG, "BLE Advertiser tidak didukung pada hardware ini.")
+            onStatusChanged?.invoke("ADV UNSUPPORTED", false)
             return
         }
 
@@ -143,18 +150,37 @@ class BluetoothTransmitter(
             .setTimeout(0)
             .build()
 
+        // Paket data utama: HANYA Service UUID (21 byte < limit 31 byte)
+        // Jangan sertakan nama di sini karena jika nama HP panjang (>8 char) totalnya >31 byte!
         val data = AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
+            .setIncludeDeviceName(false)
             .addServiceUuid(ParcelUuid(SERVICE_UUID))
             .build()
 
-        advertiser?.startAdvertising(settings, data, object : AdvertiseCallback() {
+        // Scan response: Nama perangkat dikirim terpisah di buffer 31 byte tersendiri
+        val scanResponse = AdvertiseData.Builder()
+            .setIncludeDeviceName(true)
+            .build()
+
+        advertiser?.startAdvertising(settings, data, scanResponse, object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
                 Log.i(TAG, "BLE Advertising berhasil dimulai dengan nama: ${bluetoothAdapter?.name}")
+                onStatusChanged?.invoke("WAITING PC...", false)
             }
 
             override fun onStartFailure(errorCode: Int) {
-                Log.e(TAG, "Gagal memulai BLE Advertising: error code $errorCode")
+                Log.w(TAG, "Gagal memulai BLE Advertising dengan scanResponse: error $errorCode. Mencoba fallback data-only...")
+                advertiser?.startAdvertising(settings, data, object : AdvertiseCallback() {
+                    override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                        Log.i(TAG, "BLE Advertising fallback data-only berhasil dimulai.")
+                        onStatusChanged?.invoke("WAITING PC...", false)
+                    }
+
+                    override fun onStartFailure(fallbackErr: Int) {
+                        Log.e(TAG, "BLE Advertising fallback juga gagal: error $fallbackErr")
+                        onStatusChanged?.invoke("ADV ERR: $fallbackErr", false)
+                    }
+                })
             }
         })
     }

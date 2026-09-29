@@ -70,14 +70,15 @@ namespace CameraGun.Server
             }
 
             watcher.Stop();
-            StatusChanged?.Invoke($"Ditemukan Device: {args.Advertisement.LocalName} ({args.BluetoothAddress:X}). Menghubungkan...");
+            string devName = string.IsNullOrEmpty(args.Advertisement.LocalName) ? "CameraGun Device" : args.Advertisement.LocalName;
+            StatusChanged?.Invoke($"Ditemukan: {devName} ({args.BluetoothAddress:X}). Menghubungkan...");
 
             try
             {
                 _connectedDevice = await BluetoothLEDevice.FromBluetoothAddressAsync(args.BluetoothAddress);
                 if (_connectedDevice == null)
                 {
-                    StatusChanged?.Invoke("Gagal menghubungkan ke BLE Device.");
+                    StatusChanged?.Invoke("Gagal menghubungkan ke BLE Device. Mencari ulang...");
                     watcher.Start();
                     return;
                 }
@@ -94,7 +95,10 @@ namespace CameraGun.Server
                 var servicesResult = await _connectedDevice.GetGattServicesForUuidAsync(ServiceUuid);
                 if (servicesResult.Status != GattCommunicationStatus.Success || servicesResult.Services.Count == 0)
                 {
-                    StatusChanged?.Invoke("Gatt Service tidak ditemukan.");
+                    StatusChanged?.Invoke("Gatt Service belum siap. Mencari ulang...");
+                    _connectedDevice.Dispose();
+                    _connectedDevice = null;
+                    watcher.Start();
                     return;
                 }
 
@@ -122,6 +126,8 @@ namespace CameraGun.Server
             catch (Exception ex)
             {
                 StatusChanged?.Invoke($"Error koneksi BLE: {ex.Message}");
+                _connectedDevice?.Dispose();
+                _connectedDevice = null;
                 watcher.Start();
             }
         }
