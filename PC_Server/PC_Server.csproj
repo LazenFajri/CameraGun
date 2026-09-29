@@ -10,6 +10,7 @@
     <PlatformTarget>x64</PlatformTarget>
     <ApplicationManifest Condition="Exists('app.manifest')">app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <ItemGroup>

@@ -39,7 +39,6 @@ namespace CameraGun.Server
             {
                 ScanningMode = BluetoothLEScanningMode.Active
             };
-            _bleWatcher.AdvertisementFilter.ByteSections.Clear();
 
             _bleWatcher.Received += OnAdvertisementReceived;
             _bleWatcher.Start();
