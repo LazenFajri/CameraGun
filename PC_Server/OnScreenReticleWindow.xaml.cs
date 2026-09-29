@@ -48,13 +48,13 @@ namespace CameraGun.Server
 
                 if (isFiring)
                 {
-                    outerRing.Stroke = Brushes.OrangeRed;
-                    centerDot.Fill = Brushes.Yellow;
+                    outerRing.Stroke = System.Windows.Media.Brushes.OrangeRed;
+                    centerDot.Fill = System.Windows.Media.Brushes.Yellow;
                 }
                 else
                 {
-                    outerRing.Stroke = (Brush)FindResource("AccentCyan");
-                    centerDot.Fill = (Brush)FindResource("AccentGreen");
+                    outerRing.Stroke = (System.Windows.Media.Brush)FindResource("AccentCyan");
+                    centerDot.Fill = (System.Windows.Media.Brush)FindResource("AccentGreen");
                 }
             });
         }

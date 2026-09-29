@@ -105,15 +105,15 @@ namespace CameraGun.Server
             if (active)
             {
                 txtInputStatus.Text = "F8: ACTIVE";
-                txtInputStatus.Foreground = FindResource("AccentGreen") as Brush;
-                badgeInputF8.BorderBrush = FindResource("AccentGreen") as Brush;
+                txtInputStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                badgeInputF8.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
                 txtStatusMsg.Text = "Input RESUMED (F8)";
             }
             else
             {
                 txtInputStatus.Text = "F8: PAUSED";
-                txtInputStatus.Foreground = FindResource("AccentOrange") as Brush;
-                badgeInputF8.BorderBrush = FindResource("AccentOrange") as Brush;
+                txtInputStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                badgeInputF8.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
                 txtStatusMsg.Text = "Input PAUSED (F8) — Mouse & buttons temporarily disabled";
             }
         }
@@ -508,8 +508,8 @@ namespace CameraGun.Server
             _reticleEnabled = !_reticleEnabled;
             btnToggleReticle.Content = _reticleEnabled ? "🎯  ON-SCREEN RETICLE: ON" : "🎯  ON-SCREEN RETICLE: OFF";
             btnToggleReticle.BorderBrush = _reticleEnabled
-                ? (FindResource("AccentGreen") as Brush)
-                : (FindResource("AccentCyan") as Brush);
+                ? (FindResource("AccentGreen") as System.Windows.Media.Brush)
+                : (FindResource("AccentCyan") as System.Windows.Media.Brush);
 
             if (!_reticleEnabled && _reticleWindow != null)
             {
