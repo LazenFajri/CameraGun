@@ -36,7 +36,8 @@ namespace CameraGun.Server
         private BluetoothReceiver? _btReceiver;
         private NetworkReceiver? _netReceiver;
         private InputInjection? _inputInjection;
-        private OnScreenReticleWindow? _reticleWindow;
+        private OnScreenReticleWindow? _reticleWindowP1;
+        private OnScreenReticleWindow? _reticleWindowP2;
         private bool _reticleEnabled = false;
         private NotifyIcon? _trayIcon;
         private DispatcherTimer? _uiTimer;
@@ -46,10 +47,18 @@ namespace CameraGun.Server
         private bool _borderVisible = true;
         private int _currentScreenIndex = 0;
 
+        // Player 1 Telemetry
         private int _packetCount = 0;
         private DateTime _lastFpsTime = DateTime.UtcNow;
         private LightgunInputPacket _lastPacket;
         private double _streamHz = 0;
+
+        // Player 2 Telemetry
+        private int _packetCountP2 = 0;
+        private DateTime _lastFpsTimeP2 = DateTime.UtcNow;
+        private LightgunInputPacket _lastPacketP2;
+        private double _streamHzP2 = 0;
+        private bool _hasReceivedP2 = false;
 
         public MainWindow()
         {
@@ -124,8 +133,11 @@ namespace CameraGun.Server
         {
             try
             {
-                _reticleWindow = new OnScreenReticleWindow();
-                _reticleWindow.Hide();
+                _reticleWindowP1 = new OnScreenReticleWindow(1);
+                _reticleWindowP1.Hide();
+
+                _reticleWindowP2 = new OnScreenReticleWindow(2);
+                _reticleWindowP2.Hide();
             }
             catch (Exception ex)
             {
@@ -309,27 +321,56 @@ namespace CameraGun.Server
 
         private void OnPacketReceived(LightgunInputPacket pkt)
         {
-            _lastPacket = pkt;
+            bool isP2 = (pkt.Flags & (byte)LightgunFlags.Player2) != 0;
+            var now = DateTime.UtcNow;
+
+            if (isP2)
+            {
+                _hasReceivedP2 = true;
+                _lastPacketP2 = pkt;
+                _packetCountP2++;
+                double elapsed = (now - _lastFpsTimeP2).TotalSeconds;
+                if (elapsed >= 0.5)
+                {
+                    _streamHzP2 = _packetCountP2 / elapsed;
+                    _packetCountP2 = 0;
+                    _lastFpsTimeP2 = now;
+                }
+            }
+            else
+            {
+                _lastPacket = pkt;
+                _packetCount++;
+                double elapsed = (now - _lastFpsTime).TotalSeconds;
+                if (elapsed >= 0.5)
+                {
+                    _streamHz = _packetCount / elapsed;
+                    _packetCount = 0;
+                    _lastFpsTime = now;
+                }
+            }
+
             _inputInjection?.ProcessInputPacket(pkt);
 
             bool locked = (pkt.Flags & (byte)LightgunFlags.TrackingLocked) != 0;
-            if (_reticleEnabled && _reticleWindow != null && _inputInjection != null)
+            if (_reticleEnabled && _inputInjection != null)
             {
-                _reticleWindow.UpdatePosition(
-                    _inputInjection.LastPixelX,
-                    _inputInjection.LastPixelY,
-                    locked && _inputInjection.IsEnabled,
-                    _inputInjection.IsLastFiring);
-            }
-
-            _packetCount++;
-            var now = DateTime.UtcNow;
-            double elapsed = (now - _lastFpsTime).TotalSeconds;
-            if (elapsed >= 0.5)
-            {
-                _streamHz = _packetCount / elapsed;
-                _packetCount = 0;
-                _lastFpsTime = now;
+                if (isP2 && _reticleWindowP2 != null)
+                {
+                    _reticleWindowP2.UpdatePosition(
+                        _inputInjection.LastPixelX_P2,
+                        _inputInjection.LastPixelY_P2,
+                        locked && _inputInjection.IsEnabled,
+                        _inputInjection.IsLastFiring_P2);
+                }
+                else if (!isP2 && _reticleWindowP1 != null)
+                {
+                    _reticleWindowP1.UpdatePosition(
+                        _inputInjection.LastPixelX_P1,
+                        _inputInjection.LastPixelY_P1,
+                        locked && _inputInjection.IsEnabled,
+                        _inputInjection.IsLastFiring_P1);
+                }
             }
 
             Dispatcher.BeginInvoke(DispatcherPriority.Render, () => UpdateDashboard(pkt));
@@ -337,33 +378,60 @@ namespace CameraGun.Server
 
         private void UpdateDashboard(LightgunInputPacket pkt)
         {
+            bool isP2 = (pkt.Flags & (byte)LightgunFlags.Player2) != 0;
             float normX = pkt.PointerX / 65535.0f;
             float normY = pkt.PointerY / 65535.0f;
             bool locked = (pkt.Flags & (byte)LightgunFlags.TrackingLocked) != 0;
 
-            txtCoordX.Text = $"X: {normX:F4}";
-            txtCoordY.Text = $"Y: {normY:F4}";
-            txtConfidence.Text = $"CONF: {pkt.TrackingConfidence}%";
-            txtStreamRate.Text = $"{_streamHz:F0} Hz";
-            txtPitch.Text = $"P: {pkt.GyroPitch / 100.0:F1}°";
-            txtRoll.Text = $"R: {pkt.GyroRoll / 100.0:F1}°";
-
-            if (locked)
+            if (isP2)
             {
-                txtTrackingBadge.Text = "● TARGET LOCKED";
-                txtTrackingBadge.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                txtCoordXP2.Text = $"X: {normX:F4}";
+                txtCoordYP2.Text = $"Y: {normY:F4}";
+                txtConfidenceP2.Text = $"CONF: {pkt.TrackingConfidence}%";
+
+                if (locked)
+                {
+                    txtTrackingBadgeP2.Text = "2P: TARGET LOCKED";
+                    txtTrackingBadgeP2.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                }
+                else
+                {
+                    txtTrackingBadgeP2.Text = "2P: SEARCHING";
+                    txtTrackingBadgeP2.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                }
+
+                if (_hasReceivedP2 && pointerDotP2 != null && pointerDotP2.Visibility != Visibility.Visible)
+                {
+                    pointerDotP2.Visibility = Visibility.Visible;
+                    pointerRingP2.Visibility = Visibility.Visible;
+                }
             }
             else
             {
-                txtTrackingBadge.Text = "● SEARCHING";
-                txtTrackingBadge.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
-            }
+                txtCoordX.Text = $"X: {normX:F4}";
+                txtCoordY.Text = $"Y: {normY:F4}";
+                txtConfidence.Text = $"CONF: {pkt.TrackingConfidence}%";
+                txtStreamRate.Text = $"{_streamHz:F0} Hz";
+                txtPitch.Text = $"P: {pkt.GyroPitch / 100.0:F1}°";
+                txtRoll.Text = $"R: {pkt.GyroRoll / 100.0:F1}°";
 
-            UpdateButtonIndicator(indL2, (pkt.ButtonMask & (ushort)LightgunButtons.TriggerL2) != 0);
-            UpdateButtonIndicator(indR2, (pkt.ButtonMask & (ushort)LightgunButtons.TriggerR2) != 0);
-            UpdateButtonIndicator(indCross, (pkt.ButtonMask & (ushort)LightgunButtons.Cross) != 0);
-            UpdateButtonIndicator(indCircle, (pkt.ButtonMask & (ushort)LightgunButtons.Circle) != 0);
-            UpdateButtonIndicator(indReload, (pkt.ButtonMask & (ushort)LightgunButtons.Reload) != 0);
+                if (locked)
+                {
+                    txtTrackingBadge.Text = "1P: TARGET LOCKED";
+                    txtTrackingBadge.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                }
+                else
+                {
+                    txtTrackingBadge.Text = "1P: SEARCHING";
+                    txtTrackingBadge.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                }
+
+                UpdateButtonIndicator(indL2, (pkt.ButtonMask & (ushort)LightgunButtons.TriggerL2) != 0);
+                UpdateButtonIndicator(indR2, (pkt.ButtonMask & (ushort)LightgunButtons.TriggerR2) != 0);
+                UpdateButtonIndicator(indCross, (pkt.ButtonMask & (ushort)LightgunButtons.Cross) != 0);
+                UpdateButtonIndicator(indCircle, (pkt.ButtonMask & (ushort)LightgunButtons.Circle) != 0);
+                UpdateButtonIndicator(indReload, (pkt.ButtonMask & (ushort)LightgunButtons.Reload) != 0);
+            }
         }
 
         private void UpdateButtonIndicator(System.Windows.Controls.Border indicator, bool active)
@@ -375,27 +443,46 @@ namespace CameraGun.Server
 
         private void UpdatePointerVisualization()
         {
-            if (pointerCanvas == null || pointerDot == null || pointerRing == null || crossH == null || crossV == null) return;
+            if (pointerCanvas == null) return;
 
             double cw = pointerCanvas.ActualWidth;
             double ch = pointerCanvas.ActualHeight;
             if (cw < 10 || ch < 10) return;
 
-            float normX = _lastPacket.PointerX / 65535.0f;
-            float normY = _lastPacket.PointerY / 65535.0f;
+            // Update Player 1 Pointer & Crosshairs
+            if (pointerDot != null && pointerRing != null && crossH != null && crossV != null)
+            {
+                float normX = _lastPacket.PointerX / 65535.0f;
+                float normY = _lastPacket.PointerY / 65535.0f;
 
-            double px = normX * cw;
-            double py = normY * ch;
+                double px = normX * cw;
+                double py = normY * ch;
 
-            Canvas.SetLeft(pointerDot, px - 7);
-            Canvas.SetTop(pointerDot, py - 7);
-            Canvas.SetLeft(pointerRing, px - 15);
-            Canvas.SetTop(pointerRing, py - 15);
+                Canvas.SetLeft(pointerDot, px - 7);
+                Canvas.SetTop(pointerDot, py - 7);
+                Canvas.SetLeft(pointerRing, px - 15);
+                Canvas.SetTop(pointerRing, py - 15);
 
-            crossH.X1 = 0; crossH.X2 = cw;
-            crossH.Y1 = py; crossH.Y2 = py;
-            crossV.X1 = px; crossV.X2 = px;
-            crossV.Y1 = 0; crossV.Y2 = ch;
+                crossH.X1 = 0; crossH.X2 = cw;
+                crossH.Y1 = py; crossH.Y2 = py;
+                crossV.X1 = px; crossV.X2 = px;
+                crossV.Y1 = 0; crossV.Y2 = ch;
+            }
+
+            // Update Player 2 Pointer
+            if (_hasReceivedP2 && pointerDotP2 != null && pointerRingP2 != null)
+            {
+                float normX2 = _lastPacketP2.PointerX / 65535.0f;
+                float normY2 = _lastPacketP2.PointerY / 65535.0f;
+
+                double px2 = normX2 * cw;
+                double py2 = normY2 * ch;
+
+                Canvas.SetLeft(pointerDotP2, px2 - 7);
+                Canvas.SetTop(pointerDotP2, py2 - 7);
+                Canvas.SetLeft(pointerRingP2, px2 - 15);
+                Canvas.SetTop(pointerRingP2, py2 - 15);
+            }
         }
 
         private void PointerCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -559,11 +646,12 @@ namespace CameraGun.Server
                 ? (FindResource("AccentGreen") as System.Windows.Media.Brush)
                 : (FindResource("AccentCyan") as System.Windows.Media.Brush);
 
-            if (!_reticleEnabled && _reticleWindow != null)
+            if (!_reticleEnabled)
             {
-                _reticleWindow.Hide();
+                _reticleWindowP1?.Hide();
+                _reticleWindowP2?.Hide();
             }
-            txtStatusMsg.Text = _reticleEnabled ? "On-Screen Cyber Reticle: AKTIF" : "On-Screen Reticle: NONAKTIF";
+            txtStatusMsg.Text = _reticleEnabled ? "On-Screen Cyber Reticle: AKTIF (1P & 2P)" : "On-Screen Reticle: NONAKTIF";
         }
 
         private void BtnShowQr_Click(object sender, RoutedEventArgs e)
@@ -735,7 +823,8 @@ namespace CameraGun.Server
                     UnregisterHotKey(helper.Handle, HOTKEY_F8_ID);
                 }
                 _hwndSource?.RemoveHook(HwndHook);
-                _reticleWindow?.Close();
+                _reticleWindowP1?.Close();
+                _reticleWindowP2?.Close();
             }
             catch { }
 

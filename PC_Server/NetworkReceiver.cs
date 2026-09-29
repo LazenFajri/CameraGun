@@ -15,15 +15,15 @@ namespace CameraGun.Server
         public const int DefaultPort = 8765;
         private UdpClient? _udpListener;
         private CancellationTokenSource? _cts;
-        private IPEndPoint? _clientEndPoint;
-        private DateTime _lastPacketTime = DateTime.MinValue;
+        private readonly System.Collections.Concurrent.ConcurrentDictionary<IPEndPoint, DateTime> _connectedClients = new();
 
         public event Action<LightgunInputPacket>? PacketReceived;
         public event Action<string>? StatusChanged;
         public event Action? ConfigChannelReady;
 
-        public bool IsConnected => _clientEndPoint != null && (DateTime.UtcNow - _lastPacketTime).TotalSeconds < 3.0;
-        public bool IsConfigReady => _clientEndPoint != null;
+        public bool IsConnected => System.Linq.Enumerable.Any(_connectedClients.Values, t => (DateTime.UtcNow - t).TotalSeconds < 3.0);
+        public int ConnectedClientCount => System.Linq.Enumerable.Count(_connectedClients.Values, t => (DateTime.UtcNow - t).TotalSeconds < 3.0);
+        public bool IsConfigReady => !_connectedClients.IsEmpty;
         public string LocalIpAddress { get; private set; } = "127.0.0.1";
         public int Port => DefaultPort;
 
@@ -75,13 +75,13 @@ namespace CameraGun.Server
                         if (data[15] == crc)
                         {
                             var pkt = ParsePacket(data);
-                            bool wasConnected = IsConnected;
-                            _clientEndPoint = remoteEp;
-                            _lastPacketTime = DateTime.UtcNow;
+                            bool isNewClient = !_connectedClients.ContainsKey(remoteEp);
+                            _connectedClients[remoteEp] = DateTime.UtcNow;
 
-                            if (!wasConnected)
+                            if (isNewClient)
                             {
-                                StatusChanged?.Invoke($"Wi-Fi Client Terhubung: {remoteEp.Address}");
+                                int clientNum = (pkt.Flags & (byte)LightgunFlags.Player2) != 0 ? 2 : 1;
+                                StatusChanged?.Invoke($"Wi-Fi Client Terhubung: {remoteEp.Address} (P{clientNum})");
                                 ConfigChannelReady?.Invoke();
                             }
 
@@ -100,7 +100,7 @@ namespace CameraGun.Server
 
         public async Task<bool> SendConfigAsync(LightgunConfigPacket config)
         {
-            if (_udpListener == null || _clientEndPoint == null) return false;
+            if (_udpListener == null || _connectedClients.IsEmpty) return false;
 
             try
             {
@@ -120,8 +120,20 @@ namespace CameraGun.Server
                 bytes[14] = config.OneEuroBeta;
                 bytes[15] = ComputeCrc8(bytes, 15);
 
-                int sent = await _udpListener.SendAsync(bytes, bytes.Length, _clientEndPoint);
-                return sent == bytes.Length;
+                bool allSent = true;
+                foreach (var clientEp in _connectedClients.Keys)
+                {
+                    try
+                    {
+                        int sent = await _udpListener.SendAsync(bytes, bytes.Length, clientEp);
+                        if (sent != bytes.Length) allSent = false;
+                    }
+                    catch
+                    {
+                        allSent = false;
+                    }
+                }
+                return allSent;
             }
             catch (Exception ex)
             {

@@ -73,8 +73,11 @@ namespace CameraGun.Server
         private const uint KEYEVENTF_KEYUP = 0x0002;
 
         private const ushort VK_1 = 0x31; // '1' = Player 1 Start in Arcade/MAME/Teknoparrot
-        private const ushort VK_5 = 0x35; // '5' = Insert Coin in Arcade/MAME/Teknoparrot
-        private const ushort VK_R = 0x52; // 'R' = Reload in PC Shooters
+        private const ushort VK_2 = 0x32; // '2' = Player 2 Start in Arcade/MAME/Teknoparrot
+        private const ushort VK_5 = 0x35; // '5' = Insert Coin 1P
+        private const ushort VK_6 = 0x36; // '6' = Insert Coin 2P
+        private const ushort VK_R = 0x52; // 'R' = Player 1 Reload
+        private const ushort VK_K = 0x4B; // 'K' = Player 2 Reload
         private const ushort VK_SPACE = 0x20;
 
         [DllImport("user32.dll", SetLastError = true)]
@@ -85,20 +88,32 @@ namespace CameraGun.Server
         #endregion
 
         private ViGEmClient? _vigemClient;
-        private IXbox360Controller? _x360Controller;
+        private IXbox360Controller? _x360ControllerP1;
+        private IXbox360Controller? _x360ControllerP2;
         private bool _isVigemAvailable = false;
 
         private WinScreen _targetScreen = WinScreen.PrimaryScreen ?? WinScreen.AllScreens[0];
-        private ushort _lastButtons = 0;
-        private bool _lastTrackingLocked = false;
+        private ushort _lastButtonsP1 = 0;
+        private ushort _lastButtonsP2 = 0;
 
         public bool IsEnabled { get; set; } = true;
         public EmulatorProfile CurrentProfile { get; set; } = EmulatorProfile.Teknoparrot;
         public bool IsViGEmConnected => _isVigemAvailable;
 
-        public int LastPixelX { get; private set; } = 0;
-        public int LastPixelY { get; private set; } = 0;
-        public bool IsLastFiring { get; private set; } = false;
+        // Player 1 Coordinates & State
+        public int LastPixelX_P1 { get; private set; } = 0;
+        public int LastPixelY_P1 { get; private set; } = 0;
+        public bool IsLastFiring_P1 { get; private set; } = false;
+
+        // Player 2 Coordinates & State
+        public int LastPixelX_P2 { get; private set; } = 0;
+        public int LastPixelY_P2 { get; private set; } = 0;
+        public bool IsLastFiring_P2 { get; private set; } = false;
+
+        // Backwards compatibility aliases (P1 default)
+        public int LastPixelX => LastPixelX_P1;
+        public int LastPixelY => LastPixelY_P1;
+        public bool IsLastFiring => IsLastFiring_P1;
 
         // AAA PC Game Mode (Relative Mouse)
         private int _prevAaaX = -1;
@@ -122,10 +137,24 @@ namespace CameraGun.Server
             try
             {
                 _vigemClient = new ViGEmClient();
-                _x360Controller = _vigemClient.CreateXbox360Controller();
-                _x360Controller.Connect();
+
+                // Player 1 Virtual Controller
+                _x360ControllerP1 = _vigemClient.CreateXbox360Controller();
+                _x360ControllerP1.Connect();
+
+                // Player 2 Virtual Controller
+                try
+                {
+                    _x360ControllerP2 = _vigemClient.CreateXbox360Controller();
+                    _x360ControllerP2.Connect();
+                    Console.WriteLine("[ViGEmBus] Dual Virtual Xbox 360 Controllers (1P & 2P) connected successfully.");
+                }
+                catch (Exception exP2)
+                {
+                    Console.WriteLine($"[ViGEmBus] P2 Controller warning: {exP2.Message}");
+                }
+
                 _isVigemAvailable = true;
-                Console.WriteLine("[ViGEmBus] Virtual Xbox 360 Controller connected successfully.");
             }
             catch (Exception ex)
             {
@@ -138,6 +167,7 @@ namespace CameraGun.Server
         {
             if (!IsEnabled) return;
 
+            bool isP2 = (pkt.Flags & (byte)LightgunFlags.Player2) != 0;
             bool isLocked = (pkt.Flags & (byte)LightgunFlags.TrackingLocked) != 0;
             bool isOffscreenReload = (pkt.Flags & (byte)LightgunFlags.OffscreenReload) != 0 
                                      || ((pkt.ButtonMask & (ushort)LightgunButtons.Reload) != 0);
@@ -148,39 +178,59 @@ namespace CameraGun.Server
 
             int pixelX = _targetScreen.Bounds.Left + (int)(normX * _targetScreen.Bounds.Width);
             int pixelY = _targetScreen.Bounds.Top + (int)(normY * _targetScreen.Bounds.Height);
+            bool isFiring = (pkt.ButtonMask & (ushort)LightgunButtons.TriggerL2) != 0;
 
-            LastPixelX = pixelX;
-            LastPixelY = pixelY;
-            IsLastFiring = (pkt.ButtonMask & (ushort)LightgunButtons.TriggerL2) != 0;
-
-            // 1. Mouse Injection
-            if (isLocked)
+            if (isP2)
             {
-                if (CurrentProfile == EmulatorProfile.AaaPcGame)
+                LastPixelX_P2 = pixelX;
+                LastPixelY_P2 = pixelY;
+                IsLastFiring_P2 = isFiring;
+
+                // 1. P2 Keyboard Hotkeys ('2' = Start, '6' = Coin, 'K' = Reload)
+                InjectKeyboardActionsP2(pkt.ButtonMask, isOffscreenReload);
+
+                // 2. P2 Gamepad injection
+                if (_isVigemAvailable && _x360ControllerP2 != null)
                 {
-                    InjectAaaRelativeMouse(pixelX, pixelY, pkt.ButtonMask);
+                    InjectGamepad(_x360ControllerP2, pkt, isLocked, isOffscreenReload);
                 }
-                else
+
+                _lastButtonsP2 = pkt.ButtonMask;
+            }
+            else
+            {
+                LastPixelX_P1 = pixelX;
+                LastPixelY_P1 = pixelY;
+                IsLastFiring_P1 = isFiring;
+
+                // 1. Mouse Injection (P1 controls mouse cursor)
+                if (isLocked)
                 {
-                    InjectAbsoluteMouse(pixelX, pixelY, pkt.ButtonMask, isOffscreenReload);
+                    if (CurrentProfile == EmulatorProfile.AaaPcGame)
+                    {
+                        InjectAaaRelativeMouse(pixelX, pixelY, pkt.ButtonMask);
+                    }
+                    else
+                    {
+                        InjectAbsoluteMouse(pixelX, pixelY, pkt.ButtonMask, isOffscreenReload);
+                    }
                 }
-            }
-            else if (isOffscreenReload)
-            {
-                InjectOffscreenReloadClick();
-            }
+                else if (isOffscreenReload)
+                {
+                    InjectOffscreenReloadClick();
+                }
 
-            // 2. Keyboard Hotkey Emulation (Coin, Start, Reload)
-            InjectKeyboardActions(pkt.ButtonMask, isOffscreenReload);
+                // 2. P1 Keyboard Hotkeys ('1' = Start, '5' = Coin, 'R' = Reload)
+                InjectKeyboardActionsP1(pkt.ButtonMask, isOffscreenReload);
 
-            // 3. ViGEm Gamepad Output
-            if (_isVigemAvailable && _x360Controller != null)
-            {
-                InjectGamepad(pkt, isLocked, isOffscreenReload);
+                // 3. P1 Gamepad injection
+                if (_isVigemAvailable && _x360ControllerP1 != null)
+                {
+                    InjectGamepad(_x360ControllerP1, pkt, isLocked, isOffscreenReload);
+                }
+
+                _lastButtonsP1 = pkt.ButtonMask;
             }
-
-            _lastButtons = pkt.ButtonMask;
-            _lastTrackingLocked = isLocked;
         }
 
         private void InjectAbsoluteMouse(int pixelX, int pixelY, ushort buttons, bool isReload)
@@ -190,13 +240,13 @@ namespace CameraGun.Server
 
             uint flags = 0;
             bool currentTrigger = (buttons & (ushort)LightgunButtons.TriggerL2) != 0;
-            bool lastTrigger = (_lastButtons & (ushort)LightgunButtons.TriggerL2) != 0;
+            bool lastTrigger = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerL2) != 0;
 
             if (currentTrigger && !lastTrigger) flags |= MOUSEEVENTF_LEFTDOWN;
             else if (!currentTrigger && lastTrigger) flags |= MOUSEEVENTF_LEFTUP;
 
             bool currentR2 = (buttons & (ushort)LightgunButtons.TriggerR2) != 0;
-            bool lastR2 = (_lastButtons & (ushort)LightgunButtons.TriggerR2) != 0;
+            bool lastR2 = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerR2) != 0;
 
             if (currentR2 && !lastR2) flags |= MOUSEEVENTF_MIDDLEDOWN;
             else if (!currentR2 && lastR2) flags |= MOUSEEVENTF_MIDDLEUP;
@@ -239,13 +289,13 @@ namespace CameraGun.Server
             // Handle Buttons
             uint flags = 0;
             bool currentTrigger = (buttons & (ushort)LightgunButtons.TriggerL2) != 0;
-            bool lastTrigger = (_lastButtons & (ushort)LightgunButtons.TriggerL2) != 0;
+            bool lastTrigger = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerL2) != 0;
 
             if (currentTrigger && !lastTrigger) flags |= MOUSEEVENTF_LEFTDOWN;
             else if (!currentTrigger && lastTrigger) flags |= MOUSEEVENTF_LEFTUP;
 
             bool currentR2 = (buttons & (ushort)LightgunButtons.TriggerR2) != 0;
-            bool lastR2 = (_lastButtons & (ushort)LightgunButtons.TriggerR2) != 0;
+            bool lastR2 = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerR2) != 0;
 
             if (currentR2 && !lastR2) flags |= MOUSEEVENTF_RIGHTDOWN;
             else if (!currentR2 && lastR2) flags |= MOUSEEVENTF_RIGHTUP;
@@ -259,25 +309,46 @@ namespace CameraGun.Server
             }
         }
 
-        private void InjectKeyboardActions(ushort buttons, bool isReload)
+        private void InjectKeyboardActionsP1(ushort buttons, bool isReload)
         {
             // Start Button -> Key '1' (Player 1 Start)
             bool curStart = (buttons & (ushort)LightgunButtons.OptionsStart) != 0;
-            bool lastStart = (_lastButtons & (ushort)LightgunButtons.OptionsStart) != 0;
+            bool lastStart = (_lastButtonsP1 & (ushort)LightgunButtons.OptionsStart) != 0;
             if (curStart && !lastStart) SendKey(VK_1, down: true);
             else if (!curStart && lastStart) SendKey(VK_1, down: false);
 
-            // Select/Share Button -> Key '5' (Coin Insert)
+            // Select/Share Button -> Key '5' (Coin Insert 1P)
             bool curSelect = (buttons & (ushort)LightgunButtons.SelectShare) != 0;
-            bool lastSelect = (_lastButtons & (ushort)LightgunButtons.SelectShare) != 0;
+            bool lastSelect = (_lastButtonsP1 & (ushort)LightgunButtons.SelectShare) != 0;
             if (curSelect && !lastSelect) SendKey(VK_5, down: true);
             else if (!curSelect && lastSelect) SendKey(VK_5, down: false);
 
-            // Reload Button -> Key 'R' (FPS / Arcade Reload)
+            // Reload Button -> Key 'R' (FPS / Arcade 1P Reload)
             bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-            bool lastReload = (_lastButtons & (ushort)LightgunButtons.Reload) != 0;
+            bool lastReload = (_lastButtonsP1 & (ushort)LightgunButtons.Reload) != 0;
             if (curReload && !lastReload) SendKey(VK_R, down: true);
             else if (!curReload && lastReload) SendKey(VK_R, down: false);
+        }
+
+        private void InjectKeyboardActionsP2(ushort buttons, bool isReload)
+        {
+            // Start Button -> Key '2' (Player 2 Start)
+            bool curStart = (buttons & (ushort)LightgunButtons.OptionsStart) != 0;
+            bool lastStart = (_lastButtonsP2 & (ushort)LightgunButtons.OptionsStart) != 0;
+            if (curStart && !lastStart) SendKey(VK_2, down: true);
+            else if (!curStart && lastStart) SendKey(VK_2, down: false);
+
+            // Select/Share Button -> Key '6' (Coin Insert 2P)
+            bool curSelect = (buttons & (ushort)LightgunButtons.SelectShare) != 0;
+            bool lastSelect = (_lastButtonsP2 & (ushort)LightgunButtons.SelectShare) != 0;
+            if (curSelect && !lastSelect) SendKey(VK_6, down: true);
+            else if (!curSelect && lastSelect) SendKey(VK_6, down: false);
+
+            // Reload Button -> Key 'K' (Player 2 Reload)
+            bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
+            bool lastReload = (_lastButtonsP2 & (ushort)LightgunButtons.Reload) != 0;
+            if (curReload && !lastReload) SendKey(VK_K, down: true);
+            else if (!curReload && lastReload) SendKey(VK_K, down: false);
         }
 
         private void SendKey(ushort vkCode, bool down)
@@ -306,33 +377,31 @@ namespace CameraGun.Server
             SendInput(2, inputs, Marshal.SizeOf<INPUT>());
         }
 
-        private void InjectGamepad(LightgunInputPacket pkt, bool isLocked, bool isReload)
+        private void InjectGamepad(IXbox360Controller controller, LightgunInputPacket pkt, bool isLocked, bool isReload)
         {
-            if (_x360Controller == null) return;
-
             ushort b = pkt.ButtonMask;
 
             // Action Buttons
-            _x360Controller.SetButtonState(Xbox360Button.A, (b & (ushort)LightgunButtons.Cross) != 0);
-            _x360Controller.SetButtonState(Xbox360Button.B, (b & (ushort)LightgunButtons.Circle) != 0 || isReload);
-            _x360Controller.SetButtonState(Xbox360Button.X, (b & (ushort)LightgunButtons.Square) != 0);
-            _x360Controller.SetButtonState(Xbox360Button.Y, (b & (ushort)LightgunButtons.Triangle) != 0);
+            controller.SetButtonState(Xbox360Button.A, (b & (ushort)LightgunButtons.Cross) != 0);
+            controller.SetButtonState(Xbox360Button.B, (b & (ushort)LightgunButtons.Circle) != 0 || isReload);
+            controller.SetButtonState(Xbox360Button.X, (b & (ushort)LightgunButtons.Square) != 0);
+            controller.SetButtonState(Xbox360Button.Y, (b & (ushort)LightgunButtons.Triangle) != 0);
 
             // D-Pad
-            _x360Controller.SetButtonState(Xbox360Button.Up, (b & (ushort)LightgunButtons.DpadUp) != 0);
-            _x360Controller.SetButtonState(Xbox360Button.Down, (b & (ushort)LightgunButtons.DpadDown) != 0);
-            _x360Controller.SetButtonState(Xbox360Button.Left, (b & (ushort)LightgunButtons.DpadLeft) != 0);
-            _x360Controller.SetButtonState(Xbox360Button.Right, (b & (ushort)LightgunButtons.DpadRight) != 0);
+            controller.SetButtonState(Xbox360Button.Up, (b & (ushort)LightgunButtons.DpadUp) != 0);
+            controller.SetButtonState(Xbox360Button.Down, (b & (ushort)LightgunButtons.DpadDown) != 0);
+            controller.SetButtonState(Xbox360Button.Left, (b & (ushort)LightgunButtons.DpadLeft) != 0);
+            controller.SetButtonState(Xbox360Button.Right, (b & (ushort)LightgunButtons.DpadRight) != 0);
 
             // Menu Buttons
-            _x360Controller.SetButtonState(Xbox360Button.Start, (b & (ushort)LightgunButtons.OptionsStart) != 0);
-            _x360Controller.SetButtonState(Xbox360Button.Back, (b & (ushort)LightgunButtons.SelectShare) != 0);
+            controller.SetButtonState(Xbox360Button.Start, (b & (ushort)LightgunButtons.OptionsStart) != 0);
+            controller.SetButtonState(Xbox360Button.Back, (b & (ushort)LightgunButtons.SelectShare) != 0);
 
             // Triggers (Analog 0 - 255)
             byte l2Value = (b & (ushort)LightgunButtons.TriggerL2) != 0 ? (byte)255 : (byte)0;
             byte r2Value = (b & (ushort)LightgunButtons.TriggerR2) != 0 ? (byte)255 : (byte)0;
-            _x360Controller.SetSliderValue(Xbox360Slider.LeftTrigger, l2Value);
-            _x360Controller.SetSliderValue(Xbox360Slider.RightTrigger, r2Value);
+            controller.SetSliderValue(Xbox360Slider.LeftTrigger, l2Value);
+            controller.SetSliderValue(Xbox360Slider.RightTrigger, r2Value);
 
             // Analog Stick Mapping (GunCon 2 / GunCon 3)
             if (isLocked)
@@ -340,18 +409,19 @@ namespace CameraGun.Server
                 short stickX = (short)(pkt.PointerX - 32768);
                 short stickY = (short)(32768 - pkt.PointerY);
 
-                _x360Controller.SetAxisValue(Xbox360Axis.LeftThumbX, stickX);
-                _x360Controller.SetAxisValue(Xbox360Axis.LeftThumbY, stickY);
+                controller.SetAxisValue(Xbox360Axis.LeftThumbX, stickX);
+                controller.SetAxisValue(Xbox360Axis.LeftThumbY, stickY);
             }
 
-            _x360Controller.SubmitReport();
+            controller.SubmitReport();
         }
 
         public void Dispose()
         {
             try
             {
-                _x360Controller?.Disconnect();
+                _x360ControllerP1?.Disconnect();
+                _x360ControllerP2?.Disconnect();
                 _vigemClient?.Dispose();
             }
             catch { }

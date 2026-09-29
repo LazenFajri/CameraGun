@@ -76,6 +76,18 @@ class CornerOverlayView @JvmOverloads constructor(
         postInvalidate()
     }
 
+    fun setPlayerRole(isP2: Boolean) {
+        val baseColor = if (isP2) magentaColor else cyanColor
+        val fillHex = if (isP2) "#22FF0066" else "#2200E5FF"
+        val glowHex = if (isP2) "#44FF0066" else "#4400E5FF"
+
+        reticlePaint.color = baseColor
+        reticleFillPaint.color = Color.parseColor(fillHex)
+        reticleGlowPaint.color = Color.parseColor(glowHex)
+        infoPaint.color = if (isP2) Color.parseColor("#AAFF0066") else Color.parseColor("#AA00E5FF")
+        postInvalidate()
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         val w = width.toFloat()

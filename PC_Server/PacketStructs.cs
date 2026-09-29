@@ -28,7 +28,8 @@ namespace CameraGun.Server
         None            = 0,
         TrackingLocked  = 1 << 0,
         OffscreenReload = 1 << 1,
-        LowConfidence   = 1 << 2
+        LowConfidence   = 1 << 2,
+        Player2         = 1 << 3  // 0 = Player 1, 1 = Player 2
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 1)]

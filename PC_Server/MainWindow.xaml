@@ -329,7 +329,8 @@
                                           StrokeDashArray="4,4"/>
                                     <Line x:Name="crossV" Stroke="#30FFFFFF" StrokeThickness="1"
                                           StrokeDashArray="4,4"/>
-                                    <!-- Pointer dot -->
+
+                                    <!-- Player 1 Pointer (Cyan) -->
                                     <Ellipse x:Name="pointerDot" Width="14" Height="14" StrokeThickness="2">
                                         <Ellipse.Fill>
                                             <RadialGradientBrush>
@@ -341,26 +342,60 @@
                                             <SolidColorBrush Color="#00E5FF"/>
                                         </Ellipse.Stroke>
                                     </Ellipse>
-                                    <!-- Pointer ring -->
                                     <Ellipse x:Name="pointerRing" Width="30" Height="30"
                                              Stroke="#4000E5FF" StrokeThickness="1" Fill="Transparent"/>
+
+                                    <!-- Player 2 Pointer (Magenta) -->
+                                    <Ellipse x:Name="pointerDotP2" Width="14" Height="14" StrokeThickness="2" Visibility="Hidden">
+                                        <Ellipse.Fill>
+                                            <RadialGradientBrush>
+                                                <GradientStop Color="#FF0066" Offset="0"/>
+                                                <GradientStop Color="#990033" Offset="1"/>
+                                            </RadialGradientBrush>
+                                        </Ellipse.Fill>
+                                        <Ellipse.Stroke>
+                                            <SolidColorBrush Color="#FF0066"/>
+                                        </Ellipse.Stroke>
+                                    </Ellipse>
+                                    <Ellipse x:Name="pointerRingP2" Width="30" Height="30"
+                                             Stroke="#40FF0066" StrokeThickness="1" Fill="Transparent" Visibility="Hidden"/>
                                 </Canvas>
 
                                 <!-- Coordinate HUD overlay -->
                                 <StackPanel VerticalAlignment="Top" HorizontalAlignment="Right" Margin="10">
-                                    <TextBlock x:Name="txtCoordX" Text="X: 0.0000" FontFamily="Consolas"
-                                               FontSize="13" Foreground="{StaticResource AccentCyan}"/>
-                                    <TextBlock x:Name="txtCoordY" Text="Y: 0.0000" FontFamily="Consolas"
-                                               FontSize="13" Foreground="{StaticResource AccentGreen}"/>
-                                    <TextBlock x:Name="txtConfidence" Text="CONF: 0%" FontFamily="Consolas"
-                                               FontSize="11" Foreground="{StaticResource TextSecondary}" Margin="0,4,0,0"/>
+                                    <Border Background="#400A0E1A" CornerRadius="4" Padding="6,3" Margin="0,0,0,4">
+                                        <StackPanel>
+                                            <TextBlock Text="[ 1P CYAN ]" FontSize="9" FontWeight="Bold" Foreground="{StaticResource AccentCyan}"/>
+                                            <TextBlock x:Name="txtCoordX" Text="X: 0.0000" FontFamily="Consolas"
+                                                       FontSize="11" Foreground="{StaticResource AccentCyan}"/>
+                                            <TextBlock x:Name="txtCoordY" Text="Y: 0.0000" FontFamily="Consolas"
+                                                       FontSize="11" Foreground="{StaticResource AccentGreen}"/>
+                                            <TextBlock x:Name="txtConfidence" Text="CONF: 0%" FontFamily="Consolas"
+                                                       FontSize="9" Foreground="{StaticResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#400A0E1A" CornerRadius="4" Padding="6,3">
+                                        <StackPanel>
+                                            <TextBlock Text="[ 2P MAGENTA ]" FontSize="9" FontWeight="Bold" Foreground="{StaticResource AccentMagenta}"/>
+                                            <TextBlock x:Name="txtCoordXP2" Text="X: —" FontFamily="Consolas"
+                                                       FontSize="11" Foreground="{StaticResource AccentMagenta}"/>
+                                            <TextBlock x:Name="txtCoordYP2" Text="Y: —" FontFamily="Consolas"
+                                                       FontSize="11" Foreground="#FFDD00"/>
+                                            <TextBlock x:Name="txtConfidenceP2" Text="CONF: —" FontFamily="Consolas"
+                                                       FontSize="9" Foreground="{StaticResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
 
                                 <!-- Tracking Status -->
                                 <Border VerticalAlignment="Top" HorizontalAlignment="Left" Margin="10"
                                         CornerRadius="6" Padding="8,4" Background="#200A0E1A">
-                                    <TextBlock x:Name="txtTrackingBadge" Text="● NO SIGNAL" FontSize="11"
-                                               FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}"/>
+                                    <StackPanel>
+                                        <TextBlock x:Name="txtTrackingBadge" Text="1P: NO SIGNAL" FontSize="11"
+                                                   FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}"/>
+                                        <TextBlock x:Name="txtTrackingBadgeP2" Text="2P: NO SIGNAL" FontSize="11"
+                                                   FontWeight="SemiBold" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0"/>
+                                    </StackPanel>
                                 </Border>
                             </Grid>
                         </Border>

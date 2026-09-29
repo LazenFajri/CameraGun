@@ -19,9 +19,46 @@ namespace CameraGun.Server
         [DllImport("user32.dll")]
         private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
 
-        public OnScreenReticleWindow()
+        public int PlayerId { get; set; } = 1;
+
+        public OnScreenReticleWindow(int playerId = 1)
         {
+            PlayerId = playerId;
             InitializeComponent();
+            Loaded += (_, _) => ApplyPlayerTheme();
+        }
+
+        private void ApplyPlayerTheme()
+        {
+            if (PlayerId == 2)
+            {
+                var p2Brush = (System.Windows.Media.Brush)FindResource("AccentP2");
+                outerRing.Stroke = p2Brush;
+                armTop.Stroke = p2Brush;
+                armBottom.Stroke = p2Brush;
+                armLeft.Stroke = p2Brush;
+                armRight.Stroke = p2Brush;
+                centerDot.Fill = (System.Windows.Media.Brush)FindResource("AccentYellow");
+                centerDot.Stroke = p2Brush;
+                txtPlayerTag.Text = "2P";
+                txtPlayerTag.Foreground = p2Brush;
+                badgeBorder.BorderBrush = p2Brush;
+            }
+            else
+            {
+                var cyanBrush = (System.Windows.Media.Brush)FindResource("AccentCyan");
+                var greenBrush = (System.Windows.Media.Brush)FindResource("AccentGreen");
+                outerRing.Stroke = cyanBrush;
+                armTop.Stroke = cyanBrush;
+                armBottom.Stroke = cyanBrush;
+                armLeft.Stroke = cyanBrush;
+                armRight.Stroke = cyanBrush;
+                centerDot.Fill = greenBrush;
+                centerDot.Stroke = cyanBrush;
+                txtPlayerTag.Text = "1P";
+                txtPlayerTag.Foreground = cyanBrush;
+                badgeBorder.BorderBrush = cyanBrush;
+            }
         }
 
         protected override void OnSourceInitialized(EventArgs e)
@@ -48,13 +85,12 @@ namespace CameraGun.Server
 
                 if (isFiring)
                 {
-                    outerRing.Stroke = System.Windows.Media.Brushes.OrangeRed;
-                    centerDot.Fill = System.Windows.Media.Brushes.Yellow;
+                    outerRing.Stroke = System.Windows.Media.Brushes.Yellow;
+                    centerDot.Fill = System.Windows.Media.Brushes.White;
                 }
                 else
                 {
-                    outerRing.Stroke = (System.Windows.Media.Brush)FindResource("AccentCyan");
-                    centerDot.Fill = (System.Windows.Media.Brush)FindResource("AccentGreen");
+                    ApplyPlayerTheme();
                 }
             });
         }

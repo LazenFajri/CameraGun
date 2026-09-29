@@ -26,6 +26,7 @@ namespace LightgunFlags {
     constexpr uint8_t TRACKING_LOCKED   = 1 << 0;  // 1 = Border 4 sudut valid terdeteksi
     constexpr uint8_t OFFSCREEN_RELOAD  = 1 << 1;  // 1 = Pointer diarahkan ke luar layar bawah
     constexpr uint8_t LOW_CONFIDENCE    = 1 << 2;  // 1 = Deteksi kontur marginal
+    constexpr uint8_t PLAYER_2          = 1 << 3;  // 1 = Player 2 (0 = Player 1)
 }
 
 // Struct 16 Byte: Android -> PC Telemetry Packet

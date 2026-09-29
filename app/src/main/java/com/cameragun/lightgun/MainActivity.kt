@@ -39,6 +39,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         )
         private const val PREFS_NAME = "cameragun_prefs"
         private const val KEY_PORTRAIT = "pref_is_portrait"
+        private const val KEY_PLAYER_2 = "pref_is_player_2"
         private const val PREVIEW_WIDTH = 1280
         private const val PREVIEW_HEIGHT = 720
     }
@@ -50,6 +51,9 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     private lateinit var tvCoords: TextView
     private lateinit var tvFps: TextView
     private lateinit var dotBt: View
+    private lateinit var btnPlayerRole: Button
+
+    private var isPlayer2: Boolean = false
 
     private val nativeBridge = NativeVisionBridge()
     private lateinit var bluetoothTransmitter: BluetoothTransmitter
@@ -74,9 +78,11 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Read orientation preference (default: Landscape)
+        // Read orientation & player role preferences
         val prefs = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isPortrait = prefs.getBoolean(KEY_PORTRAIT, false)
+        isPlayer2 = prefs.getBoolean(KEY_PLAYER_2, false)
+
         requestedOrientation = if (isPortrait) {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
@@ -97,6 +103,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
         initViews()
         updateOrientationUI(isPortrait)
+        updatePlayerRoleUI()
         setupControllerButtons()
 
         sensorsManager = SensorsManager(this)
@@ -205,6 +212,16 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             btnBorderColor.setTextColor(ContextCompat.getColor(this, colorTextColors[currentColorIndex]))
         }
 
+        // Player Role toggle button (1P <-> 2P)
+        btnPlayerRole = findViewById(R.id.btnPlayerRole)
+        btnPlayerRole.setOnClickListener {
+            vibrateLight()
+            isPlayer2 = !isPlayer2
+            getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_PLAYER_2, isPlayer2).apply()
+            updatePlayerRoleUI()
+        }
+
         // Wi-Fi Pairing Dialog Button
         findViewById<Button>(R.id.btnWifi)?.setOnClickListener {
             vibrateLight()
@@ -224,6 +241,21 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         findViewById<Button>(R.id.btnGotIt)?.setOnClickListener {
             vibrateLight()
             layoutTutorial?.visibility = View.GONE
+        }
+    }
+
+    private fun updatePlayerRoleUI() {
+        if (::btnPlayerRole.isInitialized) {
+            if (isPlayer2) {
+                btnPlayerRole.text = "🎯 2P"
+                btnPlayerRole.setTextColor(ContextCompat.getColor(this, R.color.cyber_magenta))
+            } else {
+                btnPlayerRole.text = "🎯 1P"
+                btnPlayerRole.setTextColor(ContextCompat.getColor(this, R.color.cyber_cyan))
+            }
+        }
+        if (::cornerOverlay.isInitialized) {
+            cornerOverlay.setPlayerRole(isPlayer2)
         }
     }
 
@@ -558,7 +590,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             normY = (visionResults[1] - sensorsManager.gyroDeltaY * 0.35f).coerceIn(0f, 1f)
         }
 
-        val flags = visionResults[2].toInt()
+        var flags = visionResults[2].toInt()
+        if (isPlayer2) {
+            flags = flags or (1 shl 3) // LightgunFlags.PLAYER_2
+        }
         val confidence = visionResults[3].toInt()
         val currentButtons = buttonMask.get()
         val pitch = sensorsManager.pitch
