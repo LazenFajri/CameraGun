@@ -254,7 +254,7 @@ namespace CameraGun.Server
 
         private void PresetColor_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is Button btn && btn.Tag is string hexStr)
+            if (sender is System.Windows.Controls.Button btn && btn.Tag is string hexStr)
             {
                 ApplyBorderColor(hexStr);
             }
@@ -335,7 +335,7 @@ namespace CameraGun.Server
 
         private void EmulatorProfile_Changed(object sender, RoutedEventArgs e)
         {
-            if (sender is RadioButton rb)
+            if (sender is System.Windows.Controls.RadioButton rb)
             {
                 txtStatusMsg.Text = $"Emulator profile: {rb.Content}";
             }
@@ -385,7 +385,7 @@ namespace CameraGun.Server
             Task.Run(async () =>
             {
                 bool ok = await _btReceiver.SendConfigAsync(config);
-                Dispatcher.BeginInvoke(() =>
+                await Dispatcher.InvokeAsync(() =>
                 {
                     txtStatusMsg.Text = ok
                         ? $"Calibration synced: HSV [{hMin}..{hMax}]"
