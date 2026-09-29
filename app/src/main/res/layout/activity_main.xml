@@ -811,7 +811,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="4dp"
-                        android:text="1. Mode Kamera (Landscape):\nMembidik langsung ke layar laptop menggunakan kamera reflex HP.\n\n2. Mode Gyro Remote (Portrait / Posisi Tidur):\nKamera HP mati total (hemat baterai & enteng). HP dipegang secara portrait / posisi tidur mengarah ke laptop dengan refresh rate 100Hz murni dari sensor gyro!"
+                        android:text="1. Mode Kamera (Landscape):\nMembidik langsung ke layar laptop menggunakan kamera reflex HP.\n\n2. Mode Gyro Remote (Portrait / Posisi Tidur):\nKamera HP mati total (hemat baterai dan enteng). HP dipegang secara portrait / posisi tidur mengarah ke laptop dengan refresh rate 100Hz murni dari sensor gyro!"
                         android:textColor="@color/cyber_text_primary"
                         android:textSize="11sp" />
 
