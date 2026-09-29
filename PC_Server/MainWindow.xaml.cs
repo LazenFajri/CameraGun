@@ -200,14 +200,14 @@ namespace CameraGun.Server
 
                         if (_btReceiver != null && _btReceiver.IsConnected)
                         {
-                            txtBtStatus.Text = "CONNECTED";
+                            txtBtStatus.Text = "BT: CONNECTED";
                             txtBtStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
                             dotBt.Fill = FindResource("AccentGreen") as System.Windows.Media.Brush;
                             badgeBt.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
                         }
                         else
                         {
-                            txtBtStatus.Text = "SEARCHING...";
+                            txtBtStatus.Text = "BT: SEARCHING...";
                             txtBtStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
                             dotBt.Fill = FindResource("AccentOrange") as System.Windows.Media.Brush;
                             badgeBt.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
@@ -378,6 +378,14 @@ namespace CameraGun.Server
 
         private void UpdateDashboard(LightgunInputPacket pkt)
         {
+            if (_netReceiver != null && _netReceiver.IsConnected && txtWifiStatus != null && txtWifiStatus.Text != "WI-FI: CONNECTED")
+            {
+                txtWifiStatus.Text = "WI-FI: CONNECTED";
+                txtWifiStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                dotWifi.Fill = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                badgeWifi.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
+            }
+
             bool isP2 = (pkt.Flags & (byte)LightgunFlags.Player2) != 0;
             float normX = pkt.PointerX / 65535.0f;
             float normY = pkt.PointerY / 65535.0f;

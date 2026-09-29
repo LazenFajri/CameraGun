@@ -36,13 +36,42 @@ namespace CameraGun.Server
                 _udpListener = new UdpClient(new IPEndPoint(IPAddress.Any, port));
                 _udpListener.EnableBroadcast = true;
 
+                try
+                {
+                    const int SIO_UDP_CONNRESET = -1744830452;
+                    _udpListener.Client.IOControl((IOControlCode)SIO_UDP_CONNRESET, new byte[] { 0, 0, 0, 0 }, null);
+                }
+                catch { }
+
                 StatusChanged?.Invoke($"Wi-Fi Server: {LocalIpAddress}:{port} (Listening)");
 
                 Task.Run(() => ReceiveLoop(_cts.Token), _cts.Token);
+                Task.Run(() => AnnouncementLoop(_cts.Token), _cts.Token);
             }
             catch (Exception ex)
             {
                 StatusChanged?.Invoke($"Wi-Fi Error: {ex.Message}");
+            }
+        }
+
+        private async Task AnnouncementLoop(CancellationToken token)
+        {
+            if (_udpListener == null) return;
+            var bcastEp = new IPEndPoint(IPAddress.Broadcast, DefaultPort);
+
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    byte[] announceBytes = Encoding.ASCII.GetBytes($"CAMERAGUN_SERVER_ANNOUNCE:{LocalIpAddress}:{DefaultPort}");
+                    await _udpListener.SendAsync(announceBytes, announceBytes.Length, bcastEp);
+                    await Task.Delay(2500, token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch
+                {
+                    try { await Task.Delay(2500, token); } catch { break; }
+                }
             }
         }
 

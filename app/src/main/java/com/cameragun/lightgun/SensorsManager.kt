@@ -5,6 +5,9 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Process
 import android.view.Surface
 
 class SensorsManager(context: Context) : SensorEventListener {
@@ -19,6 +22,9 @@ class SensorsManager(context: Context) : SensorEventListener {
         ?: sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
     private val gyroscope = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+
+    private var sensorThread: HandlerThread? = null
+    private var sensorHandler: Handler? = null
 
     // Legacy short values for backward-compatible telemetry packets
     @Volatile var pitch: Short = 0
@@ -71,19 +77,31 @@ class SensorsManager(context: Context) : SensorEventListener {
     private var lastGyroTimestamp: Long = 0
 
     fun start() {
+        if (sensorThread == null) {
+            sensorThread = HandlerThread("CameraGun-Sensors", Process.THREAD_PRIORITY_URGENT_DISPLAY).apply {
+                start()
+                sensorHandler = Handler(looper)
+            }
+        }
+        val h = sensorHandler
         rotationVector?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, h)
         }
         accelerometer?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, h)
         }
         gyroscope?.let {
-            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST)
+            sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_FASTEST, h)
         }
     }
 
     fun stop() {
         sensorManager.unregisterListener(this)
+        try {
+            sensorThread?.quitSafely()
+            sensorThread = null
+            sensorHandler = null
+        } catch (_: Exception) {}
     }
 
     /**
@@ -294,6 +312,10 @@ class SensorsManager(context: Context) : SensorEventListener {
         when (event.sensor.type) {
             Sensor.TYPE_GAME_ROTATION_VECTOR, Sensor.TYPE_ROTATION_VECTOR -> {
                 SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+
+                if (!hasCenter) {
+                    setCenter()
+                }
 
                 // Simpan orientasi legacy untuk kompatibilitas data packet
                 SensorManager.getOrientation(rotationMatrix, orientationAngles)

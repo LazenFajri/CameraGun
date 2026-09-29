@@ -21,6 +21,7 @@ import android.view.*
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -108,10 +109,6 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         sensorsManager = SensorsManager(this)
         nativeBridge.initVision(1920, 1080)
 
-        initViews()
-        setupControllerButtons()
-        setAppMode(isGyroOnlyMode)
-
         networkTransmitter = NetworkTransmitter(this) { hMin, sMin, vMin, hMax, sMax, vMax, w, h ->
             nativeBridge.updateHsvBoundaries(hMin, sMin, vMin, hMax, sMax, vMax)
             nativeBridge.initVision(w, h)
@@ -143,6 +140,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
                 updateBtStatusUI()
             }
         }
+
+        initViews()
+        setupControllerButtons()
+        setAppMode(isGyroOnlyMode)
 
         if (allPermissionsGranted()) {
             startSystems()
@@ -383,12 +384,12 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val roll = sensorsManager.roll
         val timestampMs = (SystemClock.elapsedRealtime() and 0xFFFF).toInt()
 
-        if (networkTransmitter.isConnected) {
+        if (::networkTransmitter.isInitialized) {
             networkTransmitter.sendTelemetry(
                 normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
             )
         }
-        if (bluetoothTransmitter.isClientConnected) {
+        if (::bluetoothTransmitter.isInitialized && bluetoothTransmitter.isClientConnected) {
             bluetoothTransmitter.sendTelemetry(
                 normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
             )
@@ -418,16 +419,20 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             tvStatus?.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
         }
 
-        val isConnected = networkTransmitter.isConnected || bluetoothTransmitter.isClientConnected
+        val isNetConnected = ::networkTransmitter.isInitialized && networkTransmitter.isConnected
+        val isBtConnected = ::bluetoothTransmitter.isInitialized && bluetoothTransmitter.isClientConnected
+        val isConnected = isNetConnected || isBtConnected
+
         if (isConnected) {
-            tvBt?.text = if (networkTransmitter.isConnected) "WI-FI: OK" else "BT: OK"
+            tvBt?.text = if (isNetConnected) "WI-FI: OK" else "BT: OK"
             tvBt?.setTextColor(ContextCompat.getColor(this, R.color.cyber_green))
             val dotDrawable = dotBt?.background
             if (dotDrawable is GradientDrawable) {
                 dotDrawable.setColor(ContextCompat.getColor(this, R.color.cyber_green))
             }
         } else {
-            tvBt?.text = "OFFLINE"
+            val netIp = if (::networkTransmitter.isInitialized) networkTransmitter.connectedIp else null
+            tvBt?.text = if (netIp != null) "CONNECTING..." else "OFFLINE (KETUK WI-FI)"
             tvBt?.setTextColor(ContextCompat.getColor(this, R.color.cyber_orange))
             val dotDrawable = dotBt?.background
             if (dotDrawable is GradientDrawable) {
@@ -532,12 +537,15 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val builder = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
         builder.setTitle("📶 KONEKSI WI-FI PC SERVER")
 
+        val savedIp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString("wifi_server_ip", "") ?: ""
+        val currentIp = if (::networkTransmitter.isInitialized && networkTransmitter.connectedIp != null) networkTransmitter.connectedIp else savedIp
+
         val input = EditText(this).apply {
-            val savedIp = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString("wifi_server_ip", "")
-            setText(if (networkTransmitter.connectedIp != null) networkTransmitter.connectedIp else savedIp)
-            hint = "Contoh: 192.168.1.15:8765"
+            setText(if (!currentIp.isNullOrBlank()) currentIp else "192.168.1.8:8765")
+            hint = "Contoh: 192.168.1.8:8765"
             setTextColor(ContextCompat.getColor(this@MainActivity, R.color.cyber_cyan))
             setPadding(30, 30, 30, 30)
+            selectAll()
         }
         builder.setView(input)
 
@@ -550,8 +558,13 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             }
         }
 
-        builder.setNeutralButton("CARI OTOMATIS") { _, _ ->
+        builder.setNeutralButton("PINDAI LAN (SCAN)") { _, _ ->
             networkTransmitter.autoDiscover()
+            networkTransmitter.scanSubnet { cur, total ->
+                runOnUiThread {
+                    Toast.makeText(this@MainActivity, "Memindai IP LAN: $cur/$total...", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
 
         builder.setNegativeButton("BATAL", null)
@@ -754,14 +767,14 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         val timestampMs = (SystemClock.elapsedRealtime() and 0xFFFF).toInt()
 
         // Kirim via Wi-Fi UDP (Ultra-low latency 1ms, no BLE throttle)
-        if (networkTransmitter.isConnected) {
+        if (::networkTransmitter.isInitialized) {
             networkTransmitter.sendTelemetry(
                 normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
             )
         }
 
         // Kirim juga via BLE jika terhubung
-        if (bluetoothTransmitter.isClientConnected) {
+        if (::bluetoothTransmitter.isInitialized && bluetoothTransmitter.isClientConnected) {
             bluetoothTransmitter.sendTelemetry(
                 normX, normY, flags, currentButtons, pitch, roll, timestampMs, confidence
             )

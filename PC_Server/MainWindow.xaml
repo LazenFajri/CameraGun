@@ -192,7 +192,7 @@
                                 Background="#1A2138" BorderBrush="{StaticResource AccentOrange}" BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse x:Name="dotBt" Width="8" Height="8" Fill="{StaticResource AccentOrange}" Margin="0,0,6,0"/>
-                                <TextBlock x:Name="txtBtStatus" Text="SEARCHING..." FontSize="10" Foreground="{StaticResource AccentOrange}" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="txtBtStatus" Text="BT: SEARCHING..." FontSize="10" Foreground="{StaticResource AccentOrange}" FontWeight="SemiBold"/>
                             </StackPanel>
                         </Border>
 

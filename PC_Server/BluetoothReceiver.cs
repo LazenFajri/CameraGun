@@ -29,7 +29,7 @@ namespace CameraGun.Server
         public event Action<string>? StatusChanged;
         public event Action? ConfigChannelReady;
 
-        public bool IsConnected => (_connectedDevice != null && _connectedDevice.ConnectionStatus == BluetoothConnectionStatus.Connected) 
+        public bool IsConnected => (_connectedDevice != null && _telemetryChar != null && _connectedDevice.ConnectionStatus == BluetoothConnectionStatus.Connected) 
                                    || (_comPortFallback != null && _comPortFallback.IsOpen);
 
         public bool IsConfigReady => _configChar != null;
