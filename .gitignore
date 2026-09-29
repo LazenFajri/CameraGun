@@ -1,0 +1,19 @@
+# Visual Studio / .NET
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+*.suo
+
+# Android / Gradle
+.gradle/
+build/
+app/build/
+.idea/
+*.iml
+local.properties
+.cxx/
+captures/
+
+# External reference folder
+GKHEART LIGHTGUN september 2026 - Beta 4.13/

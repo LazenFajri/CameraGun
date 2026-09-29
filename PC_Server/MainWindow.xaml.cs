@@ -1,11 +1,14 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using DrawingColor = System.Drawing.Color;
 using WinFormsApp = System.Windows.Forms.Application;
@@ -16,10 +19,24 @@ namespace CameraGun.Server
 {
     public partial class MainWindow : Window
     {
+        [DllImport("user32.dll")]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        private const int HOTKEY_F8_ID = 9001;
+        private const uint VK_F8 = 0x77;
+        private const uint MOD_NONE = 0x0000;
+        private const int WM_HOTKEY = 0x0312;
+        private HwndSource? _hwndSource;
+
         private BorderOverlay? _overlay;
         private Thread? _overlayThread;
         private BluetoothReceiver? _btReceiver;
         private InputInjection? _inputInjection;
+        private OnScreenReticleWindow? _reticleWindow;
+        private bool _reticleEnabled = false;
         private NotifyIcon? _trayIcon;
         private DispatcherTimer? _uiTimer;
 
@@ -43,13 +60,75 @@ namespace CameraGun.Server
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
-            InitializeMonitorButton();
             InitializeInputInjection();
+            InitializeMonitorButton();
             StartBorderOverlay();
             InitializeBluetooth();
             InitializeSystemTray();
+            InitializeGlobalHotKey();
+            InitializeReticleOverlay();
             StartUiTimer();
             txtStatusMsg.Text = "Ready — waiting for phone connection...";
+        }
+
+        private void InitializeGlobalHotKey()
+        {
+            try
+            {
+                var helper = new WindowInteropHelper(this);
+                _hwndSource = HwndSource.FromHwnd(helper.Handle);
+                _hwndSource?.AddHook(HwndHook);
+                RegisterHotKey(helper.Handle, HOTKEY_F8_ID, MOD_NONE, VK_F8);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to register F8 hotkey: {ex.Message}");
+            }
+        }
+
+        private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_F8_ID)
+            {
+                ToggleInputPause();
+                handled = true;
+            }
+            return IntPtr.Zero;
+        }
+
+        private void ToggleInputPause()
+        {
+            if (_inputInjection == null) return;
+            _inputInjection.IsEnabled = !_inputInjection.IsEnabled;
+            bool active = _inputInjection.IsEnabled;
+
+            if (active)
+            {
+                txtInputStatus.Text = "F8: ACTIVE";
+                txtInputStatus.Foreground = FindResource("AccentGreen") as Brush;
+                badgeInputF8.BorderBrush = FindResource("AccentGreen") as Brush;
+                txtStatusMsg.Text = "Input RESUMED (F8)";
+            }
+            else
+            {
+                txtInputStatus.Text = "F8: PAUSED";
+                txtInputStatus.Foreground = FindResource("AccentOrange") as Brush;
+                badgeInputF8.BorderBrush = FindResource("AccentOrange") as Brush;
+                txtStatusMsg.Text = "Input PAUSED (F8) — Mouse & buttons temporarily disabled";
+            }
+        }
+
+        private void InitializeReticleOverlay()
+        {
+            try
+            {
+                _reticleWindow = new OnScreenReticleWindow();
+                _reticleWindow.Hide();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Reticle init error: {ex.Message}");
+            }
         }
 
         // ===========================================================
@@ -184,6 +263,16 @@ namespace CameraGun.Server
         {
             _lastPacket = pkt;
             _inputInjection?.ProcessInputPacket(pkt);
+
+            bool locked = (pkt.Flags & (byte)LightgunFlags.TrackingLocked) != 0;
+            if (_reticleEnabled && _reticleWindow != null && _inputInjection != null)
+            {
+                _reticleWindow.UpdatePosition(
+                    _inputInjection.LastPixelX,
+                    _inputInjection.LastPixelY,
+                    locked && _inputInjection.IsEnabled,
+                    _inputInjection.IsLastFiring);
+            }
 
             _packetCount++;
             var now = DateTime.UtcNow;
@@ -348,6 +437,7 @@ namespace CameraGun.Server
                 btnSwitchMonitor.Content = screens.Length > 1
                     ? $"🖥️ DISPLAY: 1/{screens.Length} ({s.Bounds.Width}x{s.Bounds.Height}){primary}"
                     : $"🖥️ DISPLAY: 1 ({s.Bounds.Width}x{s.Bounds.Height}){primary}";
+                _inputInjection?.SetTargetScreen(s);
             }
         }
 
@@ -369,8 +459,9 @@ namespace CameraGun.Server
             {
                 _overlay.SetTargetScreen(s);
             }
+            _inputInjection?.SetTargetScreen(s);
             SyncCalibrationToAndroid();
-            txtStatusMsg.Text = $"Border dipindahkan ke Display {_currentScreenIndex + 1} ({s.Bounds.Width}x{s.Bounds.Height})";
+            txtStatusMsg.Text = $"Border & Input target dipindahkan ke Display {_currentScreenIndex + 1} ({s.Bounds.Width}x{s.Bounds.Height})";
         }
 
         // ===========================================================
@@ -389,13 +480,42 @@ namespace CameraGun.Server
 
         private void EmulatorProfile_Changed(object sender, RoutedEventArgs e)
         {
-            if (sender is System.Windows.Controls.RadioButton rb)
+            if (sender is System.Windows.Controls.RadioButton rb && _inputInjection != null)
             {
+                string label = rb.Content?.ToString() ?? "";
+                if (label.Contains("Teknoparrot"))
+                    _inputInjection.CurrentProfile = EmulatorProfile.Teknoparrot;
+                else if (label.Contains("Dolphin"))
+                    _inputInjection.CurrentProfile = EmulatorProfile.Dolphin;
+                else if (label.Contains("PCSX2"))
+                    _inputInjection.CurrentProfile = EmulatorProfile.Pcsx2;
+                else if (label.Contains("MAME"))
+                    _inputInjection.CurrentProfile = EmulatorProfile.Mame;
+                else if (label.Contains("RPCS3"))
+                    _inputInjection.CurrentProfile = EmulatorProfile.Rpcs3;
+                else if (label.Contains("AAA PC Game"))
+                    _inputInjection.CurrentProfile = EmulatorProfile.AaaPcGame;
+
                 if (txtStatusMsg != null)
                 {
-                    txtStatusMsg.Text = $"Emulator profile: {rb.Content}";
+                    txtStatusMsg.Text = $"Profile: {_inputInjection.CurrentProfile} ({label.Trim()})";
                 }
             }
+        }
+
+        private void BtnToggleReticle_Click(object sender, RoutedEventArgs e)
+        {
+            _reticleEnabled = !_reticleEnabled;
+            btnToggleReticle.Content = _reticleEnabled ? "🎯  ON-SCREEN RETICLE: ON" : "🎯  ON-SCREEN RETICLE: OFF";
+            btnToggleReticle.BorderBrush = _reticleEnabled
+                ? (FindResource("AccentGreen") as Brush)
+                : (FindResource("AccentCyan") as Brush);
+
+            if (!_reticleEnabled && _reticleWindow != null)
+            {
+                _reticleWindow.Hide();
+            }
+            txtStatusMsg.Text = _reticleEnabled ? "On-Screen Cyber Reticle: AKTIF" : "On-Screen Reticle: NONAKTIF";
         }
 
         private void BtnVigemDownload_Click(object sender, RoutedEventArgs e)
@@ -529,6 +649,18 @@ namespace CameraGun.Server
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            try
+            {
+                var helper = new WindowInteropHelper(this);
+                if (helper.Handle != IntPtr.Zero)
+                {
+                    UnregisterHotKey(helper.Handle, HOTKEY_F8_ID);
+                }
+                _hwndSource?.RemoveHook(HwndHook);
+                _reticleWindow?.Close();
+            }
+            catch { }
+
             _uiTimer?.Stop();
             _btReceiver?.Dispose();
             _inputInjection?.Dispose();
