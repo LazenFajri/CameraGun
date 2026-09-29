@@ -207,7 +207,7 @@ class NetworkTransmitter(
     private fun computeCrc8(data: ByteArray, length: Int): Byte {
         var crc = 0x00
         for (i in 0 until length) {
-            val extract = data[i].toInt() and 0xFF
+            var extract = data[i].toInt() and 0xFF
             for (j in 8 downTo 1) {
                 val sum = (crc xor extract) and 0x01
                 crc = crc ushr 1
