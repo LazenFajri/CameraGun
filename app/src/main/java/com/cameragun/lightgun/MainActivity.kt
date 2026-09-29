@@ -93,6 +93,7 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         vibrator = getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
         initViews()
+        updateOrientationUI(isPortrait)
         setupControllerButtons()
 
         sensorsManager = SensorsManager(this)
@@ -164,6 +165,10 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             } else {
                 ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             }
+            updateOrientationUI(newIsPortrait)
+            textureView.post {
+                configureTransform(textureView.width, textureView.height)
+            }
         }
 
         // Color preset quick toggle button (CYAN -> GREEN -> MAGENTA -> WHITE)
@@ -209,8 +214,24 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         }
     }
 
+    private fun updateOrientationUI(isPortrait: Boolean) {
+        val landscapeControls = findViewById<View>(R.id.landscapeControls)
+        val portraitControls = findViewById<View>(R.id.portraitControls)
+        val btnToggle = findViewById<Button>(R.id.btnToggleOrientation)
+
+        if (isPortrait) {
+            landscapeControls?.visibility = View.GONE
+            portraitControls?.visibility = View.VISIBLE
+            btnToggle?.text = "🖥️ LAND"
+        } else {
+            landscapeControls?.visibility = View.VISIBLE
+            portraitControls?.visibility = View.GONE
+            btnToggle?.text = "📱 PORT"
+        }
+    }
+
     private fun setupControllerButtons() {
-        // Primary controls with safe haptic feedback
+        // Landscape Controls (Gamepad Style)
         bindHapticButton(findViewById(R.id.btnTriggerL2), 1 shl 0, heavy = true)
         bindHapticButton(findViewById(R.id.btnCross), 1 shl 1)
         bindHapticButton(findViewById(R.id.btnCircle), 1 shl 2)
@@ -224,6 +245,21 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         bindHapticButton(findViewById(R.id.btnOptions), 1 shl 10)
         bindHapticButton(findViewById(R.id.btnShare), 1 shl 11)
         bindHapticButton(findViewById(R.id.btnTriggerR2), 1 shl 12, heavy = true)
+
+        // Portrait Controls (Pistol Grip Style)
+        bindHapticButton(findViewById(R.id.port_btnTriggerL2), 1 shl 0, heavy = true)
+        bindHapticButton(findViewById(R.id.port_btnCross), 1 shl 1)
+        bindHapticButton(findViewById(R.id.port_btnCircle), 1 shl 2)
+        bindHapticButton(findViewById(R.id.port_btnSquare), 1 shl 3)
+        bindHapticButton(findViewById(R.id.port_btnTriangle), 1 shl 4)
+        bindHapticButton(findViewById(R.id.port_btnDpadUp), 1 shl 5)
+        bindHapticButton(findViewById(R.id.port_btnDpadDown), 1 shl 6)
+        bindHapticButton(findViewById(R.id.port_btnDpadLeft), 1 shl 7)
+        bindHapticButton(findViewById(R.id.port_btnDpadRight), 1 shl 8)
+        bindHapticButton(findViewById(R.id.port_btnReload), 1 shl 9, heavy = true)
+        bindHapticButton(findViewById(R.id.port_btnOptions), 1 shl 10)
+        bindHapticButton(findViewById(R.id.port_btnShare), 1 shl 11)
+        bindHapticButton(findViewById(R.id.port_btnTriggerR2), 1 shl 12, heavy = true)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -309,6 +345,8 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        val isPortrait = newConfig.orientation == Configuration.ORIENTATION_PORTRAIT
+        updateOrientationUI(isPortrait)
         textureView.post {
             configureTransform(textureView.width, textureView.height)
         }
@@ -324,32 +362,29 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
 
         val matrix = Matrix()
         val rotation = windowManager.defaultDisplay.rotation
-        val centerX = viewWidth / 2f
-        val centerY = viewHeight / 2f
+        val viewRect = RectF(0f, 0f, viewWidth.toFloat(), viewHeight.toFloat())
+        val bufferRect = RectF(0f, 0f, PREVIEW_HEIGHT.toFloat(), PREVIEW_WIDTH.toFloat())
+        val centerX = viewRect.centerX()
+        val centerY = viewRect.centerY()
 
-        val bufferW = PREVIEW_WIDTH.toFloat()  // 1280
-        val bufferH = PREVIEW_HEIGHT.toFloat() // 720
-
-        if (rotation == Surface.ROTATION_0) {
-            // Mode Portrait (Tegak): sensor kamera 90°
-            // Buffer setelah diputar 90° memiliki lebar 720 dan tinggi 1280
-            val scale = maxOf(viewWidth / bufferH, viewHeight / bufferW)
-            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
-            matrix.postRotate(90f, centerX, centerY)
+        if (rotation == Surface.ROTATION_90 || rotation == Surface.ROTATION_270) {
+            bufferRect.offset(centerX - bufferRect.centerX(), centerY - bufferRect.centerY())
+            matrix.setRectToRect(viewRect, bufferRect, Matrix.ScaleToFit.FILL)
+            val scale = maxOf(
+                viewHeight.toFloat() / PREVIEW_HEIGHT,
+                viewWidth.toFloat() / PREVIEW_WIDTH
+            )
+            matrix.postScale(scale, scale, centerX, centerY)
+            matrix.postRotate((90 * (rotation - 2)).toFloat(), centerX, centerY)
         } else if (rotation == Surface.ROTATION_180) {
-            // Reverse Portrait
-            val scale = maxOf(viewWidth / bufferH, viewHeight / bufferW)
-            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
-            matrix.postRotate(270f, centerX, centerY)
-        } else if (rotation == Surface.ROTATION_90) {
-            // Landscape (Mendatar)
-            val scale = maxOf(viewWidth / bufferW, viewHeight / bufferH)
-            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
-        } else if (rotation == Surface.ROTATION_270) {
-            // Reverse Landscape
-            val scale = maxOf(viewWidth / bufferW, viewHeight / bufferH)
-            matrix.postScale(bufferW * scale / viewWidth, bufferH * scale / viewHeight, centerX, centerY)
             matrix.postRotate(180f, centerX, centerY)
+        } else {
+            // Mode Portrait (ROTATION_0)
+            val scale = maxOf(
+                viewWidth.toFloat() / PREVIEW_HEIGHT,
+                viewHeight.toFloat() / PREVIEW_WIDTH
+            )
+            matrix.postScale(scale, scale, centerX, centerY)
         }
         textureView.setTransform(matrix)
     }

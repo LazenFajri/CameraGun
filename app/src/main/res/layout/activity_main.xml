@@ -23,14 +23,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="top"
-        android:layout_marginStart="14dp"
-        android:layout_marginEnd="14dp"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="10dp"
         android:layout_marginTop="8dp"
         android:background="@drawable/bg_cyber_panel"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="14dp"
-        android:paddingVertical="6dp">
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="5dp">
 
         <!-- BT Status Badge -->
         <LinearLayout
@@ -47,15 +47,15 @@
                 android:id="@+id/tvBtStatus"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
+                android:layout_marginStart="5dp"
                 android:text="@string/bt_disconnected"
                 android:textColor="@color/cyber_orange"
-                android:textSize="10sp"
+                android:textSize="9sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <View android:layout_width="1dp" android:layout_height="16dp"
-            android:layout_marginHorizontal="12dp"
+        <View android:layout_width="1dp" android:layout_height="14dp"
+            android:layout_marginHorizontal="8dp"
             android:background="@color/cyber_border" />
 
         <!-- Tracking Status -->
@@ -67,27 +67,26 @@
             android:gravity="center"
             android:text="@string/tracking_lost"
             android:textColor="@color/cyber_orange"
-            android:textSize="10sp"
+            android:textSize="9sp"
             android:textStyle="bold" />
 
-        <View android:layout_width="1dp" android:layout_height="16dp"
-            android:layout_marginHorizontal="12dp"
+        <View android:layout_width="1dp" android:layout_height="14dp"
+            android:layout_marginHorizontal="8dp"
             android:background="@color/cyber_border" />
 
         <!-- Coordinates -->
         <TextView
             android:id="@+id/tvCoords"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:gravity="center"
             android:fontFamily="monospace"
             android:text="X: 0.000 | Y: 0.000"
             android:textColor="@color/cyber_text_primary"
-            android:textSize="10sp" />
+            android:textSize="9sp" />
 
-        <View android:layout_width="1dp" android:layout_height="16dp"
-            android:layout_marginHorizontal="12dp"
+        <View android:layout_width="1dp" android:layout_height="14dp"
+            android:layout_marginHorizontal="8dp"
             android:background="@color/cyber_border" />
 
         <!-- FPS Counter -->
@@ -98,11 +97,11 @@
             android:fontFamily="monospace"
             android:text="0 FPS"
             android:textColor="@color/cyber_green"
-            android:textSize="10sp"
+            android:textSize="9sp"
             android:textStyle="bold" />
 
-        <View android:layout_width="1dp" android:layout_height="16dp"
-            android:layout_marginHorizontal="8dp"
+        <View android:layout_width="1dp" android:layout_height="14dp"
+            android:layout_marginHorizontal="6dp"
             android:background="@color/cyber_border" />
 
         <!-- Orientation Toggle Button -->
@@ -111,14 +110,14 @@
             android:layout_width="wrap_content"
             android:layout_height="26dp"
             android:background="@drawable/btn_cyber_menu"
-            android:paddingHorizontal="8dp"
-            android:text="📱 PORTRAIT"
+            android:paddingHorizontal="6dp"
+            android:text="📱 PORT"
             android:textColor="@color/cyber_cyan"
-            android:textSize="9sp"
+            android:textSize="8sp"
             android:textStyle="bold" />
 
-        <View android:layout_width="1dp" android:layout_height="16dp"
-            android:layout_marginHorizontal="6dp"
+        <View android:layout_width="1dp" android:layout_height="14dp"
+            android:layout_marginHorizontal="4dp"
             android:background="@color/cyber_border" />
 
         <!-- Border Color Quick Toggle -->
@@ -127,224 +126,420 @@
             android:layout_width="wrap_content"
             android:layout_height="26dp"
             android:background="@drawable/btn_cyber_menu"
-            android:paddingHorizontal="8dp"
+            android:paddingHorizontal="6dp"
             android:text="🎨 CYAN"
             android:textColor="@color/cyber_cyan"
-            android:textSize="9sp"
+            android:textSize="8sp"
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Layer 3: LEFT CONTROLS — L2 Trigger + D-Pad -->
-    <RelativeLayout
-        android:id="@+id/leftControls"
-        android:layout_width="230dp"
-        android:layout_height="230dp"
-        android:layout_gravity="start|bottom"
-        android:layout_marginStart="12dp"
-        android:layout_marginBottom="12dp">
+    <!-- Layer 3: LANDSCAPE CONTROLS (Gamepad Style: Left + Right + Center Bottom Reload) -->
+    <FrameLayout
+        android:id="@+id/landscapeControls"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible">
 
-        <!-- L2 Trigger (Primary Fire) -->
-        <Button
-            android:id="@+id/btnTriggerL2"
-            android:layout_width="90dp"
-            android:layout_height="75dp"
-            android:layout_alignParentStart="true"
-            android:layout_alignParentTop="true"
-            android:background="@drawable/btn_cyber_trigger"
-            android:text="TRIGGER\nL2"
-            android:textColor="@color/white"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:hapticFeedbackEnabled="true" />
-
-        <!-- Share Button -->
-        <Button
-            android:id="@+id/btnShare"
-            android:layout_width="60dp"
-            android:layout_height="36dp"
-            android:layout_toEndOf="@id/btnTriggerL2"
-            android:layout_alignParentTop="true"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/btn_cyber_menu"
-            android:text="SHARE"
-            android:textColor="@color/cyber_text_secondary"
-            android:textSize="9sp" />
-
-        <!-- D-Pad Grid -->
+        <!-- Left Controls: L2 Trigger, Share, D-Pad -->
         <RelativeLayout
-            android:layout_width="130dp"
-            android:layout_height="130dp"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentStart="true">
+            android:id="@+id/leftControls"
+            android:layout_width="230dp"
+            android:layout_height="230dp"
+            android:layout_gravity="start|bottom"
+            android:layout_marginStart="12dp"
+            android:layout_marginBottom="12dp">
 
             <Button
-                android:id="@+id/btnDpadUp"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:id="@+id/btnTriggerL2"
+                android:layout_width="90dp"
+                android:layout_height="75dp"
+                android:layout_alignParentStart="true"
+                android:layout_alignParentTop="true"
+                android:background="@drawable/btn_cyber_trigger"
+                android:text="TRIGGER\nL2"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:hapticFeedbackEnabled="true" />
+
+            <Button
+                android:id="@+id/btnShare"
+                android:layout_width="60dp"
+                android:layout_height="36dp"
+                android:layout_toEndOf="@id/btnTriggerL2"
+                android:layout_alignParentTop="true"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/btn_cyber_menu"
+                android:text="SHARE"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="9sp" />
+
+            <RelativeLayout
+                android:layout_width="130dp"
+                android:layout_height="130dp"
+                android:layout_alignParentBottom="true"
+                android:layout_alignParentStart="true">
+
+                <Button
+                    android:id="@+id/btnDpadUp"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_alignParentTop="true"
+                    android:layout_centerHorizontal="true"
+                    android:background="@drawable/btn_cyber_dpad"
+                    android:text="▲"
+                    android:textColor="@color/cyber_text_secondary"
+                    android:textSize="18sp" />
+                <Button
+                    android:id="@+id/btnDpadLeft"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/btn_cyber_dpad"
+                    android:text="◀"
+                    android:textColor="@color/cyber_text_secondary"
+                    android:textSize="18sp" />
+                <Button
+                    android:id="@+id/btnDpadRight"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/btn_cyber_dpad"
+                    android:text="▶"
+                    android:textColor="@color/cyber_text_secondary"
+                    android:textSize="18sp" />
+                <Button
+                    android:id="@+id/btnDpadDown"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_alignParentBottom="true"
+                    android:layout_centerHorizontal="true"
+                    android:background="@drawable/btn_cyber_dpad"
+                    android:text="▼"
+                    android:textColor="@color/cyber_text_secondary"
+                    android:textSize="18sp" />
+            </RelativeLayout>
+        </RelativeLayout>
+
+        <!-- Right Controls: R2 Trigger, Options, Action Buttons (△, □, ○, ✖) -->
+        <RelativeLayout
+            android:id="@+id/rightControls"
+            android:layout_width="230dp"
+            android:layout_height="230dp"
+            android:layout_gravity="end|bottom"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/btnTriggerR2"
+                android:layout_width="90dp"
+                android:layout_height="75dp"
+                android:layout_alignParentEnd="true"
+                android:layout_alignParentTop="true"
+                android:background="@drawable/btn_cyber_trigger"
+                android:text="ALT FIRE\nR2"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:hapticFeedbackEnabled="true" />
+
+            <Button
+                android:id="@+id/btnOptions"
+                android:layout_width="60dp"
+                android:layout_height="36dp"
+                android:layout_toStartOf="@id/btnTriggerR2"
+                android:layout_alignParentTop="true"
+                android:layout_marginEnd="8dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/btn_cyber_menu"
+                android:text="OPTION"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="9sp" />
+
+            <RelativeLayout
+                android:layout_width="140dp"
+                android:layout_height="140dp"
+                android:layout_alignParentBottom="true"
+                android:layout_alignParentEnd="true">
+
+                <Button
+                    android:id="@+id/btnTriangle"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_alignParentTop="true"
+                    android:layout_centerHorizontal="true"
+                    android:background="@drawable/btn_cyber_action"
+                    android:text="△"
+                    android:textColor="@color/ps_triangle"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+                <Button
+                    android:id="@+id/btnSquare"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_alignParentStart="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/btn_cyber_action"
+                    android:text="□"
+                    android:textColor="@color/ps_square"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+                <Button
+                    android:id="@+id/btnCircle"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:background="@drawable/btn_cyber_action"
+                    android:text="○"
+                    android:textColor="@color/ps_circle"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+                <Button
+                    android:id="@+id/btnCross"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:layout_alignParentBottom="true"
+                    android:layout_centerHorizontal="true"
+                    android:background="@drawable/btn_cyber_action"
+                    android:text="✖"
+                    android:textColor="@color/ps_cross"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+            </RelativeLayout>
+        </RelativeLayout>
+
+        <!-- Center Bottom Reload Button for Landscape -->
+        <Button
+            android:id="@+id/btnReload"
+            android:layout_width="180dp"
+            android:layout_height="50dp"
+            android:layout_gravity="center_horizontal|bottom"
+            android:layout_marginBottom="14dp"
+            android:background="@drawable/btn_cyber_reload"
+            android:text="⟳  RELOAD"
+            android:textColor="@color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:hapticFeedbackEnabled="true" />
+    </FrameLayout>
+
+    <!-- Layer 4: PORTRAIT CONTROLS (Pistol Grip Layout: Bottom Grip + Center Trigger) -->
+    <RelativeLayout
+        android:id="@+id/portraitControls"
+        android:layout_width="match_parent"
+        android:layout_height="280dp"
+        android:layout_gravity="bottom"
+        android:paddingHorizontal="10dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+
+        <!-- D-Pad (Left side) -->
+        <RelativeLayout
+            android:id="@+id/port_dpadArea"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:layout_alignParentStart="true"
+            android:layout_above="@id/port_btnReload"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/port_btnDpadUp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentTop="true"
                 android:layout_centerHorizontal="true"
                 android:background="@drawable/btn_cyber_dpad"
                 android:text="▲"
                 android:textColor="@color/cyber_text_secondary"
-                android:textSize="18sp" />
+                android:textSize="14sp" />
             <Button
-                android:id="@+id/btnDpadLeft"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:id="@+id/port_btnDpadLeft"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
                 android:background="@drawable/btn_cyber_dpad"
                 android:text="◀"
                 android:textColor="@color/cyber_text_secondary"
-                android:textSize="18sp" />
+                android:textSize="14sp" />
             <Button
-                android:id="@+id/btnDpadRight"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:id="@+id/port_btnDpadRight"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
                 android:background="@drawable/btn_cyber_dpad"
                 android:text="▶"
                 android:textColor="@color/cyber_text_secondary"
-                android:textSize="18sp" />
+                android:textSize="14sp" />
             <Button
-                android:id="@+id/btnDpadDown"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:id="@+id/port_btnDpadDown"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentBottom="true"
                 android:layout_centerHorizontal="true"
                 android:background="@drawable/btn_cyber_dpad"
                 android:text="▼"
                 android:textColor="@color/cyber_text_secondary"
-                android:textSize="18sp" />
+                android:textSize="14sp" />
         </RelativeLayout>
-    </RelativeLayout>
 
-    <!-- Layer 4: RIGHT CONTROLS — R2 Trigger + PS Action Buttons -->
-    <RelativeLayout
-        android:id="@+id/rightControls"
-        android:layout_width="230dp"
-        android:layout_height="230dp"
-        android:layout_gravity="end|bottom"
-        android:layout_marginEnd="12dp"
-        android:layout_marginBottom="12dp">
+        <!-- Triggers Area (Center) -->
+        <LinearLayout
+            android:id="@+id/port_triggerArea"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/port_dpadArea"
+            android:layout_toStartOf="@id/port_actionArea"
+            android:layout_above="@id/port_btnReload"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="12dp"
+            android:orientation="vertical"
+            android:gravity="center">
 
-        <!-- R2 Trigger (Alt Fire) -->
-        <Button
-            android:id="@+id/btnTriggerR2"
-            android:layout_width="90dp"
-            android:layout_height="75dp"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentTop="true"
-            android:background="@drawable/btn_cyber_trigger"
-            android:text="ALT FIRE\nR2"
-            android:textColor="@color/white"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:hapticFeedbackEnabled="true" />
-
-        <!-- Options Button -->
-        <Button
-            android:id="@+id/btnOptions"
-            android:layout_width="60dp"
-            android:layout_height="36dp"
-            android:layout_toStartOf="@id/btnTriggerR2"
-            android:layout_alignParentTop="true"
-            android:layout_marginEnd="8dp"
-            android:layout_marginTop="4dp"
-            android:background="@drawable/btn_cyber_menu"
-            android:text="OPTION"
-            android:textColor="@color/cyber_text_secondary"
-            android:textSize="9sp" />
-
-        <!-- PS Action Button Diamond -->
-        <RelativeLayout
-            android:layout_width="140dp"
-            android:layout_height="140dp"
-            android:layout_alignParentBottom="true"
-            android:layout_alignParentEnd="true">
-
-            <!-- Triangle (Top) -->
+            <!-- L2 Primary Trigger (Big ergonomic pistol trigger) -->
             <Button
-                android:id="@+id/btnTriangle"
-                android:layout_width="46dp"
-                android:layout_height="46dp"
+                android:id="@+id/port_btnTriggerL2"
+                android:layout_width="100dp"
+                android:layout_height="65dp"
+                android:background="@drawable/btn_cyber_trigger"
+                android:text="TRIGGER\nL2"
+                android:textColor="@color/white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:hapticFeedbackEnabled="true" />
+
+            <!-- R2 Secondary Fire -->
+            <Button
+                android:id="@+id/port_btnTriggerR2"
+                android:layout_width="100dp"
+                android:layout_height="40dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/btn_cyber_trigger"
+                android:text="ALT R2"
+                android:textColor="@color/white"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:hapticFeedbackEnabled="true" />
+        </LinearLayout>
+
+        <!-- PlayStation Action Buttons (Right side) -->
+        <RelativeLayout
+            android:id="@+id/port_actionArea"
+            android:layout_width="110dp"
+            android:layout_height="110dp"
+            android:layout_alignParentEnd="true"
+            android:layout_above="@id/port_btnReload"
+            android:layout_marginBottom="12dp">
+
+            <Button
+                android:id="@+id/port_btnTriangle"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentTop="true"
                 android:layout_centerHorizontal="true"
                 android:background="@drawable/btn_cyber_action"
                 android:text="△"
                 android:textColor="@color/ps_triangle"
-                android:textSize="20sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
-            <!-- Square (Left) -->
             <Button
-                android:id="@+id/btnSquare"
-                android:layout_width="46dp"
-                android:layout_height="46dp"
+                android:id="@+id/port_btnSquare"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentStart="true"
                 android:layout_centerVertical="true"
                 android:background="@drawable/btn_cyber_action"
                 android:text="□"
                 android:textColor="@color/ps_square"
-                android:textSize="20sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
-            <!-- Circle (Right) -->
             <Button
-                android:id="@+id/btnCircle"
-                android:layout_width="46dp"
-                android:layout_height="46dp"
+                android:id="@+id/port_btnCircle"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentEnd="true"
                 android:layout_centerVertical="true"
                 android:background="@drawable/btn_cyber_action"
                 android:text="○"
                 android:textColor="@color/ps_circle"
-                android:textSize="20sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
-            <!-- Cross (Bottom) -->
             <Button
-                android:id="@+id/btnCross"
-                android:layout_width="46dp"
-                android:layout_height="46dp"
+                android:id="@+id/port_btnCross"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_alignParentBottom="true"
                 android:layout_centerHorizontal="true"
                 android:background="@drawable/btn_cyber_action"
                 android:text="✖"
                 android:textColor="@color/ps_cross"
-                android:textSize="18sp"
+                android:textSize="14sp"
                 android:textStyle="bold" />
         </RelativeLayout>
+
+        <!-- Option & Share Buttons (Small) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_above="@id/port_triggerArea"
+            android:layout_marginBottom="6dp"
+            android:gravity="center"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/port_btnShare"
+                android:layout_width="60dp"
+                android:layout_height="30dp"
+                android:layout_marginEnd="16dp"
+                android:background="@drawable/btn_cyber_menu"
+                android:text="SHARE"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="8sp" />
+
+            <Button
+                android:id="@+id/port_btnOptions"
+                android:layout_width="60dp"
+                android:layout_height="30dp"
+                android:background="@drawable/btn_cyber_menu"
+                android:text="OPTION"
+                android:textColor="@color/cyber_text_secondary"
+                android:textSize="8sp" />
+        </LinearLayout>
+
+        <!-- Wide Reload Bar at the very bottom -->
+        <Button
+            android:id="@+id/port_btnReload"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_alignParentBottom="true"
+            android:background="@drawable/btn_cyber_reload"
+            android:text="⟳  RELOAD"
+            android:textColor="@color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:hapticFeedbackEnabled="true" />
     </RelativeLayout>
 
-    <!-- Layer 5: Center Bottom — Reload Button -->
-    <Button
-        android:id="@+id/btnReload"
-        android:layout_width="180dp"
-        android:layout_height="50dp"
-        android:layout_gravity="center_horizontal|bottom"
-        android:layout_marginBottom="14dp"
-        android:background="@drawable/btn_cyber_reload"
-        android:text="⟳  RELOAD"
-        android:textColor="@color/white"
-        android:textSize="13sp"
-        android:textStyle="bold"
-        android:hapticFeedbackEnabled="true" />
-
-    <!-- Layer 6: Guide / Tutorial Button (Side Control) -->
+    <!-- Layer 5: Guide / Tutorial Button (Side Control) -->
     <Button
         android:id="@+id/btnHelp"
         android:layout_width="42dp"
         android:layout_height="42dp"
-        android:layout_gravity="end|bottom"
+        android:layout_gravity="end|top"
         android:layout_marginEnd="12dp"
-        android:layout_marginBottom="260dp"
+        android:layout_marginTop="56dp"
         android:background="@drawable/btn_cyber_menu"
         android:text="?"
         android:textColor="@color/cyber_cyan"
         android:textSize="20sp"
         android:textStyle="bold" />
 
-    <!-- Layer 7: Tutorial & Setup Guide Modal Overlay -->
+    <!-- Layer 6: Tutorial & Setup Guide Modal Overlay -->
     <FrameLayout
         android:id="@+id/layoutTutorial"
         android:layout_width="match_parent"
@@ -357,7 +552,7 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_marginHorizontal="36dp"
+            android:layout_marginHorizontal="24dp"
             android:layout_marginVertical="16dp"
             android:background="@drawable/bg_cyber_panel"
             android:orientation="vertical"
@@ -374,7 +569,7 @@
                     android:layout_height="wrap_content"
                     android:layout_alignParentStart="true"
                     android:layout_centerVertical="true"
-                    android:text="📖 PANDUAN PENGGUNAAN &amp; TUTORIAL"
+                    android:text="📖 PANDUAN PENGGUNAAN"
                     android:textColor="@color/cyber_cyan"
                     android:textSize="14sp"
                     android:textStyle="bold" />
@@ -432,14 +627,14 @@
                     <TextView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="🎯 1. CARA MEMBIDIK &amp; MENGUNCI LAYAR"
+                        android:text="🎯 1. CARA MEMBIDIK (PORTRAIT / LANDSCAPE)"
                         android:textColor="@color/cyber_green"
                         android:textSize="12sp"
                         android:textStyle="bold" />
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="• Pegang smartphone mendatar (Landscape) menghadap monitor PC.\n• Arahkan kamera HP sampai ke-4 sudut border monitor masuk ke layar kamera.\n• Ketika border terdeteksi, kotak hijau 'TARGET: LOCKED' akan aktif mengunci monitor."
+                        android:text="• Anda bisa bermain dalam posisi TEGAK (Portrait) seperti pistol sungguhan, atau MENDATAR (Landscape).\n• Tekan tombol '📱 PORT / 🖥️ LAND' di bar atas untuk mengganti mode orientasi kapan saja.\n• Arahkan kamera HP ke monitor sampai kotak hijau 'TARGET: LOCKED' aktif mengunci border monitor."
                         android:textColor="@color/cyber_text_primary"
                         android:textSize="11sp"
                         android:lineSpacingExtra="3dp"
@@ -457,7 +652,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="• L2 (TRIGGER KIRI): Pelatuk tembakan utama (Primary Fire / Left Mouse Click).\n• R2 (ALT FIRE): Tembakan sekunder / granat (Right Mouse Click).\n• RELOAD / OFF-SCREEN: Tekan tombol RELOAD di bawah, atau arahkan laras HP ke bawah/luar layar untuk reload otomatis seperti pistol arcade asli!\n• D-PAD &amp; AKSI (△ ○ ✖ □): Untuk navigasi menu, coin insert, atau start game."
+                        android:text="• L2 (TRIGGER): Pelatuk tembakan utama (Primary Fire / Left Click).\n• R2 (ALT FIRE): Tembakan sekunder / granat (Right Click).\n• RELOAD: Tekan tombol RELOAD di bawah, atau arahkan laras HP ke bawah / luar layar untuk reload otomatis arcade.\n• D-PAD &amp; AKSI (△ ○ ✖ □): Untuk navigasi menu, coin insert, atau start game."
                         android:textColor="@color/cyber_text_primary"
                         android:textSize="11sp"
                         android:lineSpacingExtra="3dp"
@@ -475,7 +670,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="• Tidak perlu pairing manual di menu setting Android!\n• Cukup buka PC Server di komputer terlebih dahulu, lalu buka aplikasi CameraGun di HP. Koneksi BLE akan tersambung otomatis dalam 1 detik."
+                        android:text="• Buka aplikasi CameraGun AI Server di PC terlebih dahulu.\n• Buka aplikasi CameraGun di HP. Koneksi BLE akan tersambung otomatis secara real-time 60 Hz."
                         android:textColor="@color/cyber_text_primary"
                         android:textSize="11sp"
                         android:lineSpacingExtra="3dp"
