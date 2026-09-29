@@ -18,9 +18,10 @@ class VisionPipelineCore {
 private:
     std::mutex pipelineMutex;
     
-    // HSV Calibration Range (Default: High-visibility Neon Green)
-    cv::Scalar lowerHsv{35, 100, 100};
-    cv::Scalar upperHsv{85, 255, 255};
+    // HSV Calibration Range (Default: Electric Cyan #00E5FF matching PC Server default)
+    // Cyan in OpenCV (0-180): Hue ~ 93. Range: [70..115], Saturation >= 40, Value >= 50
+    cv::Scalar lowerHsv{70, 40, 50};
+    cv::Scalar upperHsv{115, 255, 255};
     
     int pcScreenWidth = 1920;
     int pcScreenHeight = 1080;
@@ -68,7 +69,8 @@ private:
         float leftEdge = static_cast<float>(cv::norm(corners[3] - corners[0]));
         float rightEdge = static_cast<float>(cv::norm(corners[2] - corners[1]));
 
-        if (topEdge < 40.0f || bottomEdge < 40.0f || leftEdge < 30.0f || rightEdge < 30.0f) {
+        // Toleransi minimum panjang sisi (TV/laptop dari jarak 2-3 meter)
+        if (topEdge < 25.0f || bottomEdge < 25.0f || leftEdge < 18.0f || rightEdge < 18.0f) {
             return false;
         }
 
@@ -128,29 +130,42 @@ public:
         // Thresholding warna border
         cv::inRange(hsv, lowerHsv, upperHsv, mask);
 
-        // Morfologi sederhana 3x3 untuk membuang bintik grafis game
-        cv::Mat morphKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
-        cv::morphologyEx(mask, mask, cv::MORPH_OPEN, morphKernel);
+        // MORPH_CLOSE (Dilation lalu Erosion) untuk menyambung segmen border yang terputus / tipis
+        cv::Mat closeKernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3));
+        cv::morphologyEx(mask, mask, cv::MORPH_CLOSE, closeKernel);
 
         std::vector<std::vector<cv::Point>> contours;
         cv::findContours(mask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
         std::vector<cv::Point> bestQuad;
         double maxArea = 0.0;
-        double minRequiredArea = (static_cast<double>(frameW) * static_cast<double>(frameH)) * 0.05;
+        // 2.5% area layar kamera (mudah mengunci TV/laptop dari jarak jauh)
+        double minRequiredArea = (static_cast<double>(frameW) * static_cast<double>(frameH)) * 0.025;
 
         for (const auto& contour : contours) {
             double area = cv::contourArea(contour);
             if (area < minRequiredArea) continue;
 
-            double perimeter = cv::arcLength(contour, true);
-            std::vector<cv::Point> approx;
-            cv::approxPolyDP(contour, approx, 0.03 * perimeter, true);
+            // Convex Hull menyaring lekukan kecil atau gangguan bayangan di bezel monitor
+            std::vector<cv::Point> hull;
+            cv::convexHull(contour, hull);
 
-            if (approx.size() == 4 && cv::isContourConvex(approx)) {
-                if (area > maxArea) {
-                    maxArea = area;
-                    bestQuad = approx;
+            double hullArea = cv::contourArea(hull);
+            if (hullArea < minRequiredArea) continue;
+
+            double perimeter = cv::arcLength(hull, true);
+
+            // Coba multi-factor epsilon agar selalu berhasil mengekstrak tepat 4 sudut persegi
+            for (double epsFactor : {0.02, 0.025, 0.03, 0.035, 0.045, 0.06}) {
+                std::vector<cv::Point> approx;
+                cv::approxPolyDP(hull, approx, epsFactor * perimeter, true);
+
+                if (approx.size() == 4 && cv::isContourConvex(approx)) {
+                    if (hullArea > maxArea) {
+                        maxArea = hullArea;
+                        bestQuad = approx;
+                    }
+                    break;
                 }
             }
         }

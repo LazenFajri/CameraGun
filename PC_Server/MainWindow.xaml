@@ -217,13 +217,17 @@
                     <ColumnDefinition Width="250"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="250"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- ======= LEFT PANEL: BORDER CONTROL ======= -->
+                </Grid.ColumnDefi                <!-- ======= LEFT PANEL: BORDER CONTROL ======= -->
                 <Border Grid.Column="0" Background="{StaticResource BgSurface}" CornerRadius="8"
                         BorderBrush="{StaticResource BorderDim}" BorderThickness="1" Margin="0,0,7,0" Padding="14">
                     <StackPanel>
                         <TextBlock Text="⬡ BORDER CONTROL" Style="{StaticResource SectionHeader}"/>
+
+                        <TextBlock Text="TARGET DISPLAY" Style="{StaticResource ParamLabel}" Margin="0,0,0,4"/>
+                        <Button x:Name="btnSwitchMonitor" Style="{StaticResource CyberButton}"
+                                Content="🖥️ DISPLAY: 1 (Primary)" Click="BtnSwitchMonitor_Click"
+                                ToolTip="Klik untuk memindahkan border ke monitor / TV lain"
+                                HorizontalAlignment="Stretch" Margin="0,0,0,10" FontSize="11" Padding="8,6"/>
 
                         <TextBlock Text="COLOR PRESETS" Style="{StaticResource ParamLabel}" Margin="0,0,0,6"/>
                         <UniformGrid Rows="1" Columns="4" Margin="0,0,0,12">
@@ -260,8 +264,8 @@
                                      Padding="6,4" FontSize="12" FontFamily="Consolas"
                                      VerticalContentAlignment="Center"/>
                             <Button Grid.Column="2" Content="SET" Style="{StaticResource CyberButton}"
-                                    Padding="10,4" FontSize="10" Margin="4,0,0,0"
-                                    Click="BtnApplyHex_Click"/>
+                                     Padding="10,4" FontSize="10" Margin="4,0,0,0"
+                                     Click="BtnApplyHex_Click"/>
                         </Grid>
 
                         <Border x:Name="colorPreview" Height="8" CornerRadius="4" Margin="0,0,0,14">
@@ -271,11 +275,11 @@
                         </Border>
 
                         <TextBlock Style="{StaticResource ParamLabel}">
-                            <Run Text="THICKNESS: "/><Run x:Name="txtThicknessVal" Text="12" Foreground="{StaticResource AccentCyan}"/><Run Text=" px"/>
+                            <Run Text="THICKNESS: "/><Run x:Name="txtThicknessVal" Text="22" Foreground="{StaticResource AccentCyan}"/><Run Text=" px"/>
                         </TextBlock>
                         <Slider x:Name="sliderThickness" Style="{StaticResource CyberSlider}"
-                                Minimum="2" Maximum="24" Value="12" IsSnapToTickEnabled="True" TickFrequency="1"
-                                ValueChanged="SliderThickness_Changed" Margin="0,0,0,14"/>
+                                Minimum="4" Maximum="48" Value="22" IsSnapToTickEnabled="True" TickFrequency="1"
+                                ValueChanged="SliderThickness_Changed" Margin="0,0,0,14"/>"0,0,0,14"/>
 
                         <Button x:Name="btnToggleBorder" Style="{StaticResource CyberButton}"
                                 Content="⊘  HIDE BORDER" Click="BtnToggleBorder_Click" Margin="0,0,0,8"

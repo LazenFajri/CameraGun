@@ -33,7 +33,7 @@ namespace CameraGun.Server
         private const uint LWA_COLORKEY = 0x00000001;
         #endregion
 
-        public BorderOverlay(Color initialColor, int thickness = 12)
+        public BorderOverlay(Color initialColor, int thickness = 22)
         {
             _borderColor = initialColor;
             _borderThickness = thickness;
@@ -100,6 +100,19 @@ namespace CameraGun.Server
             Invalidate();
         }
 
+        public void SetTargetScreen(Screen targetScreen)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => SetTargetScreen(targetScreen)));
+                return;
+            }
+
+            Location = targetScreen.Bounds.Location;
+            Size = targetScreen.Bounds.Size;
+            Invalidate();
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
@@ -138,20 +151,22 @@ namespace CameraGun.Server
             // Skala ke OpenCV: H: 0-180
             int openCvHue = (int)(hue / 2.0f);
             
-            // Toleransi toleran untuk variasi kamera ponsel
-            int hMin = Math.Max(0, openCvHue - 18);
-            int hMax = Math.Min(180, openCvHue + 18);
+            // Toleransi ±25° untuk mengantisipasi auto-exposure / white-balance kamera ponsel
+            int hMin = Math.Max(0, openCvHue - 25);
+            int hMax = Math.Min(180, openCvHue + 25);
             
-            int sMin = Math.Max(60, (int)(sat * 255.0f * 0.5f));
+            // Sensitivitas saturasi lebih bersahabat terhadap monitor terang
+            int sMin = Math.Max(35, (int)(sat * 255.0f * 0.35f));
             int sMax = 255;
             
-            int vMin = Math.Max(70, (int)(val * 255.0f * 0.5f));
+            // Sensitivitas brightness
+            int vMin = Math.Max(50, (int)(val * 255.0f * 0.35f));
             int vMax = 255;
 
             // Khusus warna putih murni
-            if (sat < 0.15f && val > 0.8f)
+            if (sat < 0.15f && val > 0.75f)
             {
-                return (0, 0, 180, 180, 50, 255);
+                return (0, 0, 160, 180, 55, 255);
             }
 
             return ((byte)hMin, (byte)sMin, (byte)vMin, (byte)hMax, (byte)sMax, (byte)vMax);

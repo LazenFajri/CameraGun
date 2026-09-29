@@ -24,8 +24,9 @@ namespace CameraGun.Server
         private DispatcherTimer? _uiTimer;
 
         private DrawingColor _currentBorderColor = DrawingColor.FromArgb(0, 229, 255);
-        private int _borderThickness = 12;
+        private int _borderThickness = 22;
         private bool _borderVisible = true;
+        private int _currentScreenIndex = 0;
 
         private int _packetCount = 0;
         private DateTime _lastFpsTime = DateTime.UtcNow;
@@ -42,6 +43,7 @@ namespace CameraGun.Server
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
+            InitializeMonitorButton();
             InitializeInputInjection();
             StartBorderOverlay();
             InitializeBluetooth();
@@ -109,7 +111,6 @@ namespace CameraGun.Server
                             txtBtStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
                             dotBt.Fill = FindResource("AccentGreen") as System.Windows.Media.Brush;
                             badgeBt.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
-                            SyncCalibrationToAndroid();
                         }
                         else
                         {
@@ -119,6 +120,14 @@ namespace CameraGun.Server
                             badgeBt.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
                         }
                     });
+                };
+
+                _btReceiver.ConfigChannelReady += () =>
+                {
+                    Dispatcher.BeginInvoke((Action)(() =>
+                    {
+                        SyncCalibrationToAndroid();
+                    }));
                 };
 
                 _btReceiver.PacketReceived += OnPacketReceived;
@@ -328,6 +337,42 @@ namespace CameraGun.Server
             }
         }
 
+        private void InitializeMonitorButton()
+        {
+            if (btnSwitchMonitor == null) return;
+            var screens = WinScreen.AllScreens;
+            if (screens.Length > 0)
+            {
+                var s = screens[0];
+                string primary = s.Primary ? " [Primary]" : "";
+                btnSwitchMonitor.Content = screens.Length > 1
+                    ? $"🖥️ DISPLAY: 1/{screens.Length} ({s.Bounds.Width}x{s.Bounds.Height}){primary}"
+                    : $"🖥️ DISPLAY: 1 ({s.Bounds.Width}x{s.Bounds.Height}){primary}";
+            }
+        }
+
+        private void BtnSwitchMonitor_Click(object sender, RoutedEventArgs e)
+        {
+            var screens = WinScreen.AllScreens;
+            if (screens.Length <= 1)
+            {
+                txtStatusMsg.Text = "Hanya 1 monitor terdeteksi pada sistem.";
+                return;
+            }
+
+            _currentScreenIndex = (_currentScreenIndex + 1) % screens.Length;
+            var s = screens[_currentScreenIndex];
+            string primary = s.Primary ? " [Primary]" : "";
+            btnSwitchMonitor.Content = $"🖥️ DISPLAY: {_currentScreenIndex + 1}/{screens.Length} ({s.Bounds.Width}x{s.Bounds.Height}){primary}";
+            
+            if (_overlay != null && !_overlay.IsDisposed)
+            {
+                _overlay.SetTargetScreen(s);
+            }
+            SyncCalibrationToAndroid();
+            txtStatusMsg.Text = $"Border dipindahkan ke Display {_currentScreenIndex + 1} ({s.Bounds.Width}x{s.Bounds.Height})";
+        }
+
         // ===========================================================
         //  SETTINGS HANDLERS
         // ===========================================================
@@ -375,8 +420,23 @@ namespace CameraGun.Server
         {
             if (_btReceiver == null || _overlay == null) return;
 
+            if (!_btReceiver.IsConnected)
+            {
+                txtStatusMsg.Text = "Sync failed — HP belum terhubung via Bluetooth (Buka aplikasi di HP)";
+                return;
+            }
+
+            if (!_btReceiver.IsConfigReady)
+            {
+                txtStatusMsg.Text = "Menyiapkan saluran data kalibrasi ke HP...";
+                return;
+            }
+
+            var screens = WinScreen.AllScreens;
+            var targetScreen = (_currentScreenIndex < screens.Length) ? screens[_currentScreenIndex] : (WinScreen.PrimaryScreen ?? screens[0]);
+            var bounds = targetScreen.Bounds;
+
             var (hMin, sMin, vMin, hMax, sMax, vMax) = _overlay.GetHsvThresholds();
-            var bounds = WinScreen.PrimaryScreen?.Bounds ?? new System.Drawing.Rectangle(0, 0, 1920, 1080);
 
             ushort scaledCutoff = (ushort)(sliderCutoff.Value * 100);
             byte scaledBeta = (byte)(sliderBeta.Value * 100);
@@ -400,8 +460,8 @@ namespace CameraGun.Server
                 await Dispatcher.InvokeAsync(() =>
                 {
                     txtStatusMsg.Text = ok
-                        ? $"Calibration synced: HSV [{hMin}..{hMax}]"
-                        : "Sync failed — phone not connected";
+                        ? $"✓ Kalibrasi tersinkron: HSV [{hMin}..{hMax}] ({bounds.Width}x{bounds.Height})"
+                        : "Sync failed — Gagal mengirim paket kalibrasi ke HP";
                 });
             });
         }

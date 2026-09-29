@@ -27,9 +27,12 @@ namespace CameraGun.Server
 
         public event Action<LightgunInputPacket>? PacketReceived;
         public event Action<string>? StatusChanged;
+        public event Action? ConfigChannelReady;
 
         public bool IsConnected => (_connectedDevice != null && _connectedDevice.ConnectionStatus == BluetoothConnectionStatus.Connected) 
                                    || (_comPortFallback != null && _comPortFallback.IsOpen);
+
+        public bool IsConfigReady => _configChar != null;
 
         public void StartBleListening()
         {
@@ -92,10 +95,16 @@ namespace CameraGun.Server
                     }
                 };
 
-                var servicesResult = await _connectedDevice.GetGattServicesForUuidAsync(ServiceUuid);
+                var servicesResult = await _connectedDevice.GetGattServicesForUuidAsync(ServiceUuid, BluetoothCacheMode.Uncached);
                 if (servicesResult.Status != GattCommunicationStatus.Success || servicesResult.Services.Count == 0)
                 {
-                    StatusChanged?.Invoke("Gatt Service belum siap. Mencari ulang...");
+                    await Task.Delay(300);
+                    servicesResult = await _connectedDevice.GetGattServicesForUuidAsync(ServiceUuid, BluetoothCacheMode.Uncached);
+                }
+
+                if (servicesResult.Status != GattCommunicationStatus.Success || servicesResult.Services.Count == 0)
+                {
+                    StatusChanged?.Invoke($"Gatt Service ({servicesResult.Status}) belum siap. Mencari ulang...");
                     _connectedDevice.Dispose();
                     _connectedDevice = null;
                     watcher.Start();
@@ -105,7 +114,7 @@ namespace CameraGun.Server
                 var service = servicesResult.Services[0];
 
                 // Dapatkan Karakteristik Telemetry
-                var telemResult = await service.GetCharacteristicsForUuidAsync(TelemetryCharUuid);
+                var telemResult = await service.GetCharacteristicsForUuidAsync(TelemetryCharUuid, BluetoothCacheMode.Uncached);
                 if (telemResult.Status == GattCommunicationStatus.Success && telemResult.Characteristics.Count > 0)
                 {
                     _telemetryChar = telemResult.Characteristics[0];
@@ -116,11 +125,12 @@ namespace CameraGun.Server
                 }
 
                 // Dapatkan Karakteristik Config
-                var cfgResult = await service.GetCharacteristicsForUuidAsync(ConfigCharUuid);
+                var cfgResult = await service.GetCharacteristicsForUuidAsync(ConfigCharUuid, BluetoothCacheMode.Uncached);
                 if (cfgResult.Status == GattCommunicationStatus.Success && cfgResult.Characteristics.Count > 0)
                 {
                     _configChar = cfgResult.Characteristics[0];
                     StatusChanged?.Invoke("Saluran konfigurasi border siap.");
+                    ConfigChannelReady?.Invoke();
                 }
             }
             catch (Exception ex)
@@ -145,12 +155,20 @@ namespace CameraGun.Server
         {
             if (_configChar == null) return false;
 
-            byte[] packetBytes = PacketUtils.SerializeConfig(config);
-            var writer = new DataWriter();
-            writer.WriteBytes(packetBytes);
+            try
+            {
+                byte[] packetBytes = PacketUtils.SerializeConfig(config);
+                var writer = new DataWriter();
+                writer.WriteBytes(packetBytes);
 
-            var result = await _configChar.WriteValueAsync(writer.DetachBuffer(), GattWriteOption.WriteWithoutResponse);
-            return result == GattCommunicationStatus.Success;
+                var result = await _configChar.WriteValueAsync(writer.DetachBuffer(), GattWriteOption.WriteWithoutResponse);
+                return result == GattCommunicationStatus.Success;
+            }
+            catch (Exception ex)
+            {
+                StatusChanged?.Invoke($"Gagal kirim config: {ex.Message}");
+                return false;
+            }
         }
 
         /// <summary>

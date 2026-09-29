@@ -101,6 +101,18 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
         bluetoothTransmitter = BluetoothTransmitter(this) { hMin, sMin, vMin, hMax, sMax, vMax, w, h ->
             nativeBridge.updateHsvBoundaries(hMin, sMin, vMin, hMax, sMax, vMax)
             nativeBridge.initVision(w, h)
+            runOnUiThread {
+                val btnBorderColor = findViewById<Button>(R.id.btnBorderColor) ?: return@runOnUiThread
+                val (name, colorRes) = when {
+                    sMax <= 65 || vMin >= 150 -> Pair("WHITE", R.color.white)
+                    hMin in 60..120 -> Pair("CYAN", R.color.cyber_cyan)
+                    hMin in 20..95 -> Pair("GREEN", R.color.cyber_green)
+                    hMin in 130..180 -> Pair("MAGENTA", R.color.cyber_magenta)
+                    else -> Pair("CUSTOM", R.color.cyber_cyan)
+                }
+                btnBorderColor.text = "🎨 $name"
+                btnBorderColor.setTextColor(ContextCompat.getColor(this, colorRes))
+            }
         }
         bluetoothTransmitter.onStatusChanged = { statusText, isConnected ->
             runOnUiThread {
@@ -152,6 +164,33 @@ class MainActivity : AppCompatActivity(), TextureView.SurfaceTextureListener {
             } else {
                 ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
             }
+        }
+
+        // Color preset quick toggle button (CYAN -> GREEN -> MAGENTA -> WHITE)
+        val colorNames = arrayOf("CYAN", "GREEN", "MAGENTA", "WHITE")
+        val colorValues = arrayOf(
+            intArrayOf(70, 40, 50, 115, 255, 255),    // CYAN
+            intArrayOf(35, 40, 50, 95, 255, 255),     // GREEN
+            intArrayOf(140, 40, 50, 180, 255, 255),   // MAGENTA
+            intArrayOf(0, 0, 160, 180, 55, 255)       // WHITE
+        )
+        val colorTextColors = arrayOf(
+            R.color.cyber_cyan,
+            R.color.cyber_green,
+            R.color.cyber_magenta,
+            R.color.white
+        )
+        var currentColorIndex = 0
+
+        val btnBorderColor = findViewById<Button>(R.id.btnBorderColor)
+        btnBorderColor?.setOnClickListener {
+            vibrateLight()
+            currentColorIndex = (currentColorIndex + 1) % colorNames.size
+            val cName = colorNames[currentColorIndex]
+            val vals = colorValues[currentColorIndex]
+            nativeBridge.updateHsvBoundaries(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5])
+            btnBorderColor.text = "🎨 $cName"
+            btnBorderColor.setTextColor(ContextCompat.getColor(this, colorTextColors[currentColorIndex]))
         }
 
         // Tutorial / Help button & modal overlay
