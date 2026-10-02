@@ -127,6 +127,7 @@ namespace CameraGun.Server
             }
             else
             {
+                _inputInjection.ReleaseAllInputs();
                 txtInputStatus.Text = "MOUSE: OFF";
                 txtInputStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
                 badgeInputF8.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;

@@ -95,6 +95,8 @@ namespace CameraGun.Server
         private WinScreen _targetScreen = WinScreen.PrimaryScreen ?? WinScreen.AllScreens[0];
         private ushort _lastButtonsP1 = 0;
         private ushort _lastButtonsP2 = 0;
+        private bool _lastReloadP1 = false;
+        private bool _lastReloadP2 = false;
 
         public bool IsEnabled { get; set; } = true;
         public bool IsMouseEnabled { get; set; } = true;
@@ -197,6 +199,7 @@ namespace CameraGun.Server
                 }
 
                 _lastButtonsP2 = pkt.ButtonMask;
+                _lastReloadP2 = isOffscreenReload;
             }
             else
             {
@@ -234,6 +237,7 @@ namespace CameraGun.Server
                 }
 
                 _lastButtonsP1 = pkt.ButtonMask;
+                _lastReloadP1 = isOffscreenReload;
             }
         }
 
@@ -255,10 +259,8 @@ namespace CameraGun.Server
             if (currentR2 && !lastR2) flags |= MOUSEEVENTF_MIDDLEDOWN;
             else if (!currentR2 && lastR2) flags |= MOUSEEVENTF_MIDDLEUP;
 
-            if (isReload)
-            {
-                flags |= MOUSEEVENTF_RIGHTDOWN;
-            }
+            if (isReload && !_lastReloadP1) flags |= MOUSEEVENTF_RIGHTDOWN;
+            else if (!isReload && _lastReloadP1) flags |= MOUSEEVENTF_RIGHTUP;
 
             if (flags != 0)
             {
@@ -329,9 +331,8 @@ namespace CameraGun.Server
 
             // Reload Button -> Key 'R' (FPS / Arcade 1P Reload)
             bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-            bool lastReload = (_lastButtonsP1 & (ushort)LightgunButtons.Reload) != 0;
-            if (curReload && !lastReload) SendKey(VK_R, down: true);
-            else if (!curReload && lastReload) SendKey(VK_R, down: false);
+            if (curReload && !_lastReloadP1) SendKey(VK_R, down: true);
+            else if (!curReload && _lastReloadP1) SendKey(VK_R, down: false);
         }
 
         private void InjectKeyboardActionsP2(ushort buttons, bool isReload)
@@ -350,9 +351,8 @@ namespace CameraGun.Server
 
             // Reload Button -> Key 'K' (Player 2 Reload)
             bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-            bool lastReload = (_lastButtonsP2 & (ushort)LightgunButtons.Reload) != 0;
-            if (curReload && !lastReload) SendKey(VK_K, down: true);
-            else if (!curReload && lastReload) SendKey(VK_K, down: false);
+            if (curReload && !_lastReloadP2) SendKey(VK_K, down: true);
+            else if (!curReload && _lastReloadP2) SendKey(VK_K, down: false);
         }
 
         private void SendKey(ushort vkCode, bool down)
@@ -418,6 +418,34 @@ namespace CameraGun.Server
             }
 
             controller.SubmitReport();
+        }
+
+        public void ReleaseAllInputs()
+        {
+            try
+            {
+                INPUT[] mouseInputs = new INPUT[3];
+                mouseInputs[0].type = INPUT_MOUSE;
+                mouseInputs[0].u.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                mouseInputs[1].type = INPUT_MOUSE;
+                mouseInputs[1].u.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+                mouseInputs[2].type = INPUT_MOUSE;
+                mouseInputs[2].u.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+                SendInput(3, mouseInputs, Marshal.SizeOf<INPUT>());
+
+                SendKey(VK_1, down: false);
+                SendKey(VK_5, down: false);
+                SendKey(VK_R, down: false);
+                SendKey(VK_2, down: false);
+                SendKey(VK_6, down: false);
+                SendKey(VK_K, down: false);
+            }
+            catch { }
+
+            _lastButtonsP1 = 0;
+            _lastButtonsP2 = 0;
+            _lastReloadP1 = false;
+            _lastReloadP2 = false;
         }
 
         public void Dispose()
