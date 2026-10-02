@@ -95,8 +95,9 @@ namespace CameraGun.Server
         private WinScreen _targetScreen = WinScreen.PrimaryScreen ?? WinScreen.AllScreens[0];
         private ushort _lastButtonsP1 = 0;
         private ushort _lastButtonsP2 = 0;
-        private bool _lastReloadP1 = false;
-        private bool _lastReloadP2 = false;
+        private bool _lastAnyReloadP1 = false;
+        private bool _lastAnyReloadP2 = false;
+        private bool _lastGyroOffscreenP1 = false;
 
         public bool IsEnabled { get; set; } = true;
         public bool IsMouseEnabled { get; set; } = true;
@@ -172,8 +173,11 @@ namespace CameraGun.Server
 
             bool isP2 = (pkt.Flags & (byte)LightgunFlags.Player2) != 0;
             bool isLocked = (pkt.Flags & (byte)LightgunFlags.TrackingLocked) != 0;
-            bool isOffscreenReload = (pkt.Flags & (byte)LightgunFlags.OffscreenReload) != 0 
-                                     || ((pkt.ButtonMask & (ushort)LightgunButtons.Reload) != 0);
+
+            // PENTING: Pisahkan gyro off-screen (HP miring ke bawah) dari tombol RELOAD di APK
+            bool isGyroOffscreen = (pkt.Flags & (byte)LightgunFlags.OffscreenReload) != 0;
+            bool isButtonReload = (pkt.ButtonMask & (ushort)LightgunButtons.Reload) != 0;
+            bool isAnyReload = isGyroOffscreen || isButtonReload;
 
             // Compute exact pixel coordinate on the selected monitor
             double normX = pkt.PointerX / 65535.0;
@@ -189,17 +193,17 @@ namespace CameraGun.Server
                 LastPixelY_P2 = pixelY;
                 IsLastFiring_P2 = isFiring;
 
-                // 1. P2 Keyboard Hotkeys ('2' = Start, '6' = Coin, 'K' = Reload)
-                InjectKeyboardActionsP2(pkt.ButtonMask, isOffscreenReload);
+                // P2 Keyboard Hotkeys ('2' = Start, '6' = Coin)
+                InjectKeyboardActionsP2(pkt.ButtonMask, isAnyReload);
 
-                // 2. P2 Gamepad injection
+                // P2 Gamepad injection
                 if (_isVigemAvailable && _x360ControllerP2 != null)
                 {
-                    InjectGamepad(_x360ControllerP2, pkt, isLocked, isOffscreenReload);
+                    InjectGamepad(_x360ControllerP2, pkt, isLocked, isAnyReload);
                 }
 
                 _lastButtonsP2 = pkt.ButtonMask;
-                _lastReloadP2 = isOffscreenReload;
+                _lastAnyReloadP2 = isAnyReload;
             }
             else
             {
@@ -207,14 +211,17 @@ namespace CameraGun.Server
                 LastPixelY_P1 = pixelY;
                 IsLastFiring_P1 = isFiring;
 
-                // 1. Mouse Button Injection (Trigger, Alt-Fire, Reload always work from APK!)
-                InjectMouseButtons(pkt.ButtonMask, isOffscreenReload);
+                // === 1. MOUSE BUTTON CLICKS (SELALU AKTIF, tidak tergantung IsMouseEnabled) ===
+                // Ini agar tombol Trigger, Reload, Alt-Fire di APK HP selalu berfungsi
+                // bahkan saat mouse injection OFF (user sedang setting di TeknoParrot)
+                InjectMouseButtons(pkt.ButtonMask, isAnyReload);
 
-                // 2. Mouse Cursor Movement (Only moves cursor when IsMouseEnabled is true)
+                // === 2. MOUSE CURSOR POSITION (hanya aktif saat IsMouseEnabled ON) ===
                 if (IsMouseEnabled)
                 {
                     if (isLocked)
                     {
+                        // HP mengarah ke layar → pindahkan kursor ke titik bidik
                         if (CurrentProfile == EmulatorProfile.AaaPcGame)
                         {
                             InjectAaaRelativeMouse(pixelX, pixelY);
@@ -224,46 +231,61 @@ namespace CameraGun.Server
                             SetCursorPos(pixelX, pixelY);
                         }
                     }
-                    else if (isOffscreenReload && !_lastReloadP1)
+                    else if (isGyroOffscreen && !_lastGyroOffscreenP1)
                     {
-                        InjectOffscreenReloadClick();
+                        // HP miring ke bawah (GYRO off-screen) → geser kursor ke pojok layar
+                        // HANYA gyro, bukan tombol RELOAD (agar tombol RELOAD tidak menggeser kursor)
+                        // Klik kanan sudah ditangani oleh InjectMouseButtons di atas
+                        int offX = _targetScreen.Bounds.Right - 10;
+                        int offY = _targetScreen.Bounds.Bottom - 10;
+                        SetCursorPos(offX, offY);
                     }
                 }
 
-                // 3. P1 Keyboard Hotkeys ('1' = Start, '5' = Coin, 'R' = Reload in AAA only)
-                InjectKeyboardActionsP1(pkt.ButtonMask, isOffscreenReload);
+                // === 3. KEYBOARD HOTKEYS ('1' = Start, '5' = Coin) ===
+                InjectKeyboardActionsP1(pkt.ButtonMask, isAnyReload);
 
-                // 4. P1 Gamepad injection
+                // === 4. GAMEPAD INJECTION (ViGEmBus Xbox 360 virtual controller) ===
                 if (_isVigemAvailable && _x360ControllerP1 != null)
                 {
-                    InjectGamepad(_x360ControllerP1, pkt, isLocked, isOffscreenReload);
+                    InjectGamepad(_x360ControllerP1, pkt, isLocked, isAnyReload);
                 }
 
                 _lastButtonsP1 = pkt.ButtonMask;
-                _lastReloadP1 = isOffscreenReload;
+                _lastAnyReloadP1 = isAnyReload;
+                _lastGyroOffscreenP1 = isGyroOffscreen;
             }
         }
 
-        private void InjectMouseButtons(ushort buttons, bool isReload)
+        /// <summary>
+        /// Kirim klik mouse ke Windows. SELALU aktif agar tombol di APK HP bisa terdeteksi
+        /// oleh TeknoParrot/emulator bahkan saat mouse injection OFF (sedang setting).
+        /// 
+        /// Mapping:
+        ///   TRIGGER L2 (di HP) → Left Mouse Click   (Tembak/Shoot)
+        ///   TRIGGER R2 (di HP) → Middle Mouse Click  (Grenade/Alt-Fire)
+        ///   RELOAD     (di HP) → Right Mouse Click   (Reload/Off-screen)
+        ///   Gyro off-screen    → Right Mouse Click   (Reload otomatis dari sensor HP)
+        /// </summary>
+        private void InjectMouseButtons(ushort buttons, bool isAnyReload)
         {
             uint flags = 0;
 
-            // Trigger L2 -> Left Mouse Button (Shoot)
+            // Trigger L2 → Left Mouse Button (Shoot / Tembak)
             bool currentTrigger = (buttons & (ushort)LightgunButtons.TriggerL2) != 0;
             bool lastTrigger = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerL2) != 0;
             if (currentTrigger && !lastTrigger) flags |= MOUSEEVENTF_LEFTDOWN;
             else if (!currentTrigger && lastTrigger) flags |= MOUSEEVENTF_LEFTUP;
 
-            // Trigger R2 / Alt-Fire -> Middle Mouse Button (Grenade/Secondary)
+            // Trigger R2 → Middle Mouse Button (Grenade / Alt-Fire)
             bool currentR2 = (buttons & (ushort)LightgunButtons.TriggerR2) != 0;
             bool lastR2 = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerR2) != 0;
             if (currentR2 && !lastR2) flags |= MOUSEEVENTF_MIDDLEDOWN;
             else if (!currentR2 && lastR2) flags |= MOUSEEVENTF_MIDDLEUP;
 
-            // Reload -> Right Mouse Button
-            bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-            if (curReload && !_lastReloadP1) flags |= MOUSEEVENTF_RIGHTDOWN;
-            else if (!curReload && _lastReloadP1) flags |= MOUSEEVENTF_RIGHTUP;
+            // Reload (tombol RELOAD di HP ATAU gyro off-screen) → Right Mouse Button
+            if (isAnyReload && !_lastAnyReloadP1) flags |= MOUSEEVENTF_RIGHTDOWN;
+            else if (!isAnyReload && _lastAnyReloadP1) flags |= MOUSEEVENTF_RIGHTUP;
 
             if (flags != 0)
             {
@@ -274,6 +296,10 @@ namespace CameraGun.Server
             }
         }
 
+        /// <summary>
+        /// Mode AAA PC Game: gerakkan kursor secara relatif (seperti FPS mouse-look).
+        /// Hanya menggerakkan posisi, tidak mengirim klik (sudah ditangani InjectMouseButtons).
+        /// </summary>
         private void InjectAaaRelativeMouse(int pixelX, int pixelY)
         {
             if (_prevAaaX >= 0 && _prevAaaY >= 0)
@@ -296,50 +322,60 @@ namespace CameraGun.Server
             _prevAaaY = pixelY;
         }
 
-        private void InjectKeyboardActionsP1(ushort buttons, bool isReload)
+        /// <summary>
+        /// Keyboard hotkeys Player 1:
+        ///   OPTIONS (di HP) → Keyboard '1' (Player 1 Start)
+        ///   SHARE   (di HP) → Keyboard '5' (Insert Coin 1P)
+        ///   RELOAD  (di HP) → Keyboard 'R' (HANYA di mode AAA PC Game, tidak di Teknoparrot)
+        /// </summary>
+        private void InjectKeyboardActionsP1(ushort buttons, bool isAnyReload)
         {
-            // Start Button -> Key '1' (Player 1 Start)
+            // OPTIONS / Start → Key '1' (Player 1 Start / Teknoparrot P1 Start)
             bool curStart = (buttons & (ushort)LightgunButtons.OptionsStart) != 0;
             bool lastStart = (_lastButtonsP1 & (ushort)LightgunButtons.OptionsStart) != 0;
             if (curStart && !lastStart) SendKey(VK_1, down: true);
             else if (!curStart && lastStart) SendKey(VK_1, down: false);
 
-            // Select/Share Button -> Key '5' (Coin Insert 1P)
+            // SHARE / Select → Key '5' (Insert Coin 1P)
             bool curSelect = (buttons & (ushort)LightgunButtons.SelectShare) != 0;
             bool lastSelect = (_lastButtonsP1 & (ushort)LightgunButtons.SelectShare) != 0;
             if (curSelect && !lastSelect) SendKey(VK_5, down: true);
             else if (!curSelect && lastSelect) SendKey(VK_5, down: false);
 
-            // Reload Button -> Key 'R' ONLY for AAA PC FPS games!
-            // In Arcade / Teknoparrot, reload is Right Mouse Click, so we don't send key 'R' to prevent interference
+            // RELOAD → Key 'R' HANYA di mode AAA PC Game (FPS)
+            // Di Teknoparrot/Arcade, reload menggunakan Right Mouse Click, bukan huruf R
+            // Ini yang sebelumnya menyebabkan huruf R muncul terus saat HP digerakkan
             if (CurrentProfile == EmulatorProfile.AaaPcGame)
             {
-                bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-                if (curReload && !_lastReloadP1) SendKey(VK_R, down: true);
-                else if (!curReload && _lastReloadP1) SendKey(VK_R, down: false);
+                bool curReload = isAnyReload;
+                if (curReload && !_lastAnyReloadP1) SendKey(VK_R, down: true);
+                else if (!curReload && _lastAnyReloadP1) SendKey(VK_R, down: false);
             }
         }
 
-        private void InjectKeyboardActionsP2(ushort buttons, bool isReload)
+        /// <summary>
+        /// Keyboard hotkeys Player 2:
+        ///   OPTIONS → Keyboard '2' (Player 2 Start)
+        ///   SHARE   → Keyboard '6' (Insert Coin 2P)
+        ///   RELOAD  → Keyboard 'K' (HANYA di mode AAA PC Game)
+        /// </summary>
+        private void InjectKeyboardActionsP2(ushort buttons, bool isAnyReload)
         {
-            // Start Button -> Key '2' (Player 2 Start)
             bool curStart = (buttons & (ushort)LightgunButtons.OptionsStart) != 0;
             bool lastStart = (_lastButtonsP2 & (ushort)LightgunButtons.OptionsStart) != 0;
             if (curStart && !lastStart) SendKey(VK_2, down: true);
             else if (!curStart && lastStart) SendKey(VK_2, down: false);
 
-            // Select/Share Button -> Key '6' (Coin Insert 2P)
             bool curSelect = (buttons & (ushort)LightgunButtons.SelectShare) != 0;
             bool lastSelect = (_lastButtonsP2 & (ushort)LightgunButtons.SelectShare) != 0;
             if (curSelect && !lastSelect) SendKey(VK_6, down: true);
             else if (!curSelect && lastSelect) SendKey(VK_6, down: false);
 
-            // Reload Button -> Key 'K' ONLY for AAA PC FPS games!
             if (CurrentProfile == EmulatorProfile.AaaPcGame)
             {
-                bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-                if (curReload && !_lastReloadP2) SendKey(VK_K, down: true);
-                else if (!curReload && _lastReloadP2) SendKey(VK_K, down: false);
+                bool curReload = isAnyReload;
+                if (curReload && !_lastAnyReloadP2) SendKey(VK_K, down: true);
+                else if (!curReload && _lastAnyReloadP2) SendKey(VK_K, down: false);
             }
         }
 
@@ -350,23 +386,6 @@ namespace CameraGun.Server
             inputs[0].u.ki.wVk = vkCode;
             inputs[0].u.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
             SendInput(1, inputs, Marshal.SizeOf<INPUT>());
-        }
-
-        private void InjectOffscreenReloadClick()
-        {
-            // Authentic arcade off-screen shot: move to bottom edge of target monitor and click right
-            int offX = _targetScreen.Bounds.Right - 10;
-            int offY = _targetScreen.Bounds.Bottom - 10;
-            SetCursorPos(offX, offY);
-
-            INPUT[] inputs = new INPUT[2];
-            inputs[0].type = INPUT_MOUSE;
-            inputs[0].u.mi.dwFlags = MOUSEEVENTF_RIGHTDOWN;
-
-            inputs[1].type = INPUT_MOUSE;
-            inputs[1].u.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
-
-            SendInput(2, inputs, Marshal.SizeOf<INPUT>());
         }
 
         private void InjectGamepad(IXbox360Controller controller, LightgunInputPacket pkt, bool isLocked, bool isReload)
@@ -408,6 +427,10 @@ namespace CameraGun.Server
             controller.SubmitReport();
         }
 
+        /// <summary>
+        /// Lepaskan semua tombol yang sedang ditekan. Dipanggil saat mouse injection di-OFF-kan (F8)
+        /// agar tidak ada tombol yang nyangkut/stuck.
+        /// </summary>
         public void ReleaseAllInputs()
         {
             try
@@ -432,8 +455,9 @@ namespace CameraGun.Server
 
             _lastButtonsP1 = 0;
             _lastButtonsP2 = 0;
-            _lastReloadP1 = false;
-            _lastReloadP2 = false;
+            _lastAnyReloadP1 = false;
+            _lastAnyReloadP2 = false;
+            _lastGyroOffscreenP1 = false;
         }
 
         public void Dispose()
