@@ -97,6 +97,7 @@ namespace CameraGun.Server
         private ushort _lastButtonsP2 = 0;
 
         public bool IsEnabled { get; set; } = true;
+        public bool IsMouseEnabled { get; set; } = true;
         public EmulatorProfile CurrentProfile { get; set; } = EmulatorProfile.Teknoparrot;
         public bool IsViGEmConnected => _isVigemAvailable;
 
@@ -204,20 +205,23 @@ namespace CameraGun.Server
                 IsLastFiring_P1 = isFiring;
 
                 // 1. Mouse Injection (P1 controls mouse cursor)
-                if (isLocked)
+                if (IsMouseEnabled)
                 {
-                    if (CurrentProfile == EmulatorProfile.AaaPcGame)
+                    if (isLocked)
                     {
-                        InjectAaaRelativeMouse(pixelX, pixelY, pkt.ButtonMask);
+                        if (CurrentProfile == EmulatorProfile.AaaPcGame)
+                        {
+                            InjectAaaRelativeMouse(pixelX, pixelY, pkt.ButtonMask);
+                        }
+                        else
+                        {
+                            InjectAbsoluteMouse(pixelX, pixelY, pkt.ButtonMask, isOffscreenReload);
+                        }
                     }
-                    else
+                    else if (isOffscreenReload)
                     {
-                        InjectAbsoluteMouse(pixelX, pixelY, pkt.ButtonMask, isOffscreenReload);
+                        InjectOffscreenReloadClick();
                     }
-                }
-                else if (isOffscreenReload)
-                {
-                    InjectOffscreenReloadClick();
                 }
 
                 // 2. P1 Keyboard Hotkeys ('1' = Start, '5' = Coin, 'R' = Reload)

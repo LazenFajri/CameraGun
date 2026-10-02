@@ -110,23 +110,43 @@ namespace CameraGun.Server
         private void ToggleInputPause()
         {
             if (_inputInjection == null) return;
-            _inputInjection.IsEnabled = !_inputInjection.IsEnabled;
-            bool active = _inputInjection.IsEnabled;
+            _inputInjection.IsMouseEnabled = !_inputInjection.IsMouseEnabled;
+            bool mouseActive = _inputInjection.IsMouseEnabled;
 
-            if (active)
+            if (mouseActive)
             {
-                txtInputStatus.Text = "F8: ACTIVE";
+                txtInputStatus.Text = "MOUSE: ON";
                 txtInputStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
                 badgeInputF8.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
-                txtStatusMsg.Text = "Input RESUMED (F8)";
+                if (btnToggleInput != null)
+                {
+                    btnToggleInput.Content = "🟢  MOUSE INJECTION: ON (F8)";
+                    btnToggleInput.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
+                }
+                txtStatusMsg.Text = "Mouse injection ENABLED (F8)";
             }
             else
             {
-                txtInputStatus.Text = "F8: PAUSED";
+                txtInputStatus.Text = "MOUSE: OFF";
                 txtInputStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
                 badgeInputF8.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
-                txtStatusMsg.Text = "Input PAUSED (F8) — Mouse & buttons temporarily disabled";
+                if (btnToggleInput != null)
+                {
+                    btnToggleInput.Content = "⏸️  MOUSE INJECTION: OFF (F8)";
+                    btnToggleInput.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                }
+                txtStatusMsg.Text = "Mouse injection DISABLED (F8) — Kursor mouse aman, Gamepad & Preview tetap aktif";
             }
+        }
+
+        private void BtnToggleInput_Click(object sender, RoutedEventArgs e)
+        {
+            ToggleInputPause();
+        }
+
+        private void BadgeInputF8_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            ToggleInputPause();
         }
 
         private void InitializeReticleOverlay()
