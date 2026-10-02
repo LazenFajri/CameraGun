@@ -207,30 +207,33 @@ namespace CameraGun.Server
                 LastPixelY_P1 = pixelY;
                 IsLastFiring_P1 = isFiring;
 
-                // 1. Mouse Injection (P1 controls mouse cursor)
+                // 1. Mouse Button Injection (Trigger, Alt-Fire, Reload always work from APK!)
+                InjectMouseButtons(pkt.ButtonMask, isOffscreenReload);
+
+                // 2. Mouse Cursor Movement (Only moves cursor when IsMouseEnabled is true)
                 if (IsMouseEnabled)
                 {
                     if (isLocked)
                     {
                         if (CurrentProfile == EmulatorProfile.AaaPcGame)
                         {
-                            InjectAaaRelativeMouse(pixelX, pixelY, pkt.ButtonMask);
+                            InjectAaaRelativeMouse(pixelX, pixelY);
                         }
                         else
                         {
-                            InjectAbsoluteMouse(pixelX, pixelY, pkt.ButtonMask, isOffscreenReload);
+                            SetCursorPos(pixelX, pixelY);
                         }
                     }
-                    else if (isOffscreenReload)
+                    else if (isOffscreenReload && !_lastReloadP1)
                     {
                         InjectOffscreenReloadClick();
                     }
                 }
 
-                // 2. P1 Keyboard Hotkeys ('1' = Start, '5' = Coin, 'R' = Reload)
+                // 3. P1 Keyboard Hotkeys ('1' = Start, '5' = Coin, 'R' = Reload in AAA only)
                 InjectKeyboardActionsP1(pkt.ButtonMask, isOffscreenReload);
 
-                // 3. P1 Gamepad injection
+                // 4. P1 Gamepad injection
                 if (_isVigemAvailable && _x360ControllerP1 != null)
                 {
                     InjectGamepad(_x360ControllerP1, pkt, isLocked, isOffscreenReload);
@@ -241,26 +244,26 @@ namespace CameraGun.Server
             }
         }
 
-        private void InjectAbsoluteMouse(int pixelX, int pixelY, ushort buttons, bool isReload)
+        private void InjectMouseButtons(ushort buttons, bool isReload)
         {
-            // Set cursor position directly to the exact target monitor pixel
-            SetCursorPos(pixelX, pixelY);
-
             uint flags = 0;
+
+            // Trigger L2 -> Left Mouse Button (Shoot)
             bool currentTrigger = (buttons & (ushort)LightgunButtons.TriggerL2) != 0;
             bool lastTrigger = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerL2) != 0;
-
             if (currentTrigger && !lastTrigger) flags |= MOUSEEVENTF_LEFTDOWN;
             else if (!currentTrigger && lastTrigger) flags |= MOUSEEVENTF_LEFTUP;
 
+            // Trigger R2 / Alt-Fire -> Middle Mouse Button (Grenade/Secondary)
             bool currentR2 = (buttons & (ushort)LightgunButtons.TriggerR2) != 0;
             bool lastR2 = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerR2) != 0;
-
             if (currentR2 && !lastR2) flags |= MOUSEEVENTF_MIDDLEDOWN;
             else if (!currentR2 && lastR2) flags |= MOUSEEVENTF_MIDDLEUP;
 
-            if (isReload && !_lastReloadP1) flags |= MOUSEEVENTF_RIGHTDOWN;
-            else if (!isReload && _lastReloadP1) flags |= MOUSEEVENTF_RIGHTUP;
+            // Reload -> Right Mouse Button
+            bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
+            if (curReload && !_lastReloadP1) flags |= MOUSEEVENTF_RIGHTDOWN;
+            else if (!curReload && _lastReloadP1) flags |= MOUSEEVENTF_RIGHTUP;
 
             if (flags != 0)
             {
@@ -271,7 +274,7 @@ namespace CameraGun.Server
             }
         }
 
-        private void InjectAaaRelativeMouse(int pixelX, int pixelY, ushort buttons)
+        private void InjectAaaRelativeMouse(int pixelX, int pixelY)
         {
             if (_prevAaaX >= 0 && _prevAaaY >= 0)
             {
@@ -291,28 +294,6 @@ namespace CameraGun.Server
 
             _prevAaaX = pixelX;
             _prevAaaY = pixelY;
-
-            // Handle Buttons
-            uint flags = 0;
-            bool currentTrigger = (buttons & (ushort)LightgunButtons.TriggerL2) != 0;
-            bool lastTrigger = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerL2) != 0;
-
-            if (currentTrigger && !lastTrigger) flags |= MOUSEEVENTF_LEFTDOWN;
-            else if (!currentTrigger && lastTrigger) flags |= MOUSEEVENTF_LEFTUP;
-
-            bool currentR2 = (buttons & (ushort)LightgunButtons.TriggerR2) != 0;
-            bool lastR2 = (_lastButtonsP1 & (ushort)LightgunButtons.TriggerR2) != 0;
-
-            if (currentR2 && !lastR2) flags |= MOUSEEVENTF_RIGHTDOWN;
-            else if (!currentR2 && lastR2) flags |= MOUSEEVENTF_RIGHTUP;
-
-            if (flags != 0)
-            {
-                INPUT[] inputs = new INPUT[1];
-                inputs[0].type = INPUT_MOUSE;
-                inputs[0].u.mi.dwFlags = flags;
-                SendInput(1, inputs, Marshal.SizeOf<INPUT>());
-            }
         }
 
         private void InjectKeyboardActionsP1(ushort buttons, bool isReload)
@@ -329,10 +310,14 @@ namespace CameraGun.Server
             if (curSelect && !lastSelect) SendKey(VK_5, down: true);
             else if (!curSelect && lastSelect) SendKey(VK_5, down: false);
 
-            // Reload Button -> Key 'R' (FPS / Arcade 1P Reload)
-            bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-            if (curReload && !_lastReloadP1) SendKey(VK_R, down: true);
-            else if (!curReload && _lastReloadP1) SendKey(VK_R, down: false);
+            // Reload Button -> Key 'R' ONLY for AAA PC FPS games!
+            // In Arcade / Teknoparrot, reload is Right Mouse Click, so we don't send key 'R' to prevent interference
+            if (CurrentProfile == EmulatorProfile.AaaPcGame)
+            {
+                bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
+                if (curReload && !_lastReloadP1) SendKey(VK_R, down: true);
+                else if (!curReload && _lastReloadP1) SendKey(VK_R, down: false);
+            }
         }
 
         private void InjectKeyboardActionsP2(ushort buttons, bool isReload)
@@ -349,10 +334,13 @@ namespace CameraGun.Server
             if (curSelect && !lastSelect) SendKey(VK_6, down: true);
             else if (!curSelect && lastSelect) SendKey(VK_6, down: false);
 
-            // Reload Button -> Key 'K' (Player 2 Reload)
-            bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
-            if (curReload && !_lastReloadP2) SendKey(VK_K, down: true);
-            else if (!curReload && _lastReloadP2) SendKey(VK_K, down: false);
+            // Reload Button -> Key 'K' ONLY for AAA PC FPS games!
+            if (CurrentProfile == EmulatorProfile.AaaPcGame)
+            {
+                bool curReload = isReload || ((buttons & (ushort)LightgunButtons.Reload) != 0);
+                if (curReload && !_lastReloadP2) SendKey(VK_K, down: true);
+                else if (!curReload && _lastReloadP2) SendKey(VK_K, down: false);
+            }
         }
 
         private void SendKey(ushort vkCode, bool down)
