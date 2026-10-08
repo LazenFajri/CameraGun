@@ -1,0 +1,20 @@
+{
+  "name": "cameragun-web-portal",
+  "version": "4.13.0",
+  "description": "CameraGun AI Web Portal & Interactive Sinden Lightgun Calibrator",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8080",
+    "dev": "python -m http.server 8080",
+    "serve": "npx serve ."
+  },
+  "keywords": [
+    "lightgun",
+    "sinden",
+    "cameragun",
+    "opencv",
+    "ble"
+  ],
+  "author": "GKHeart & CameraGun AI Team",
+  "license": "MIT"
+}

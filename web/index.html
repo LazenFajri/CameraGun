@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="CameraGun AI - Platform & Simulator Lightgun Nirkabel Presisi Tinggi Berbasis Smartphone Android, OpenCV Computer Vision, One Euro Filter, dan BLE untuk PC Windows.">
+  <meta name="keywords" content="CameraGun, Sinden Lightgun Clone, Lightgun Android, OpenCV Lightgun, One Euro Filter, Teknoparrot Lightgun, PCSX2 GunCon 2">
+  <meta name="author" content="GKHeart & CameraGun AI Team">
+  <meta property="og:title" content="CameraGun AI - Smartphone Lightgun Controller">
+  <meta property="og:description" content="Ubah Smartphone Menjadi Lightgun Nirkabel Berlatensi <10ms Menggunakan Computer Vision & Sinden Border.">
+  <meta property="og:type" content="website">
+  <title>CameraGun AI — High-Precision Smartphone Lightgun Controller & Web Calibrator</title>
+  
+  <!-- Modern Typography from Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Orbitron:wght@500;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="css/index.css">
+  <link rel="icon" type="image/png" href="assets/badge.jpg">
+</head>
+<body>
+
+  <!-- Custom Tactical Reticle Cursor -->
+  <div id="customReticle" class="custom-reticle"></div>
+
+  <!-- Cyberpunk Scanline Layer -->
+  <div class="scanlines"></div>
+
+  <!-- Header & Navigation -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <a href="#hero" class="nav-brand" id="navBrandLogo">
+        <img src="assets/badge.jpg" alt="CameraGun AI Emblem" class="nav-brand-img">
+        <div class="nav-brand-text">
+          <span class="nav-brand-title">CameraGun AI</span>
+          <span class="nav-brand-badge">SINDEN BLE v4.13</span>
+        </div>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#hero" class="nav-link active">Beranda</a></li>
+        <li><a href="#calibrator" class="nav-link">Border Calibrator</a></li>
+        <li><a href="#shooting-range" class="nav-link">Shooting Range</a></li>
+        <li><a href="#ble-inspector" class="nav-link">BLE Telemetry</a></li>
+        <li><a href="#emulators" class="nav-link">Emulator Setup</a></li>
+        <li><a href="#downloads" class="nav-link">Unduh Driver</a></li>
+      </ul>
+
+      <div class="nav-actions">
+        <button id="btnToggleAudio" class="btn-icon-hud" title="Nyalakan/Matikan Efek Suara Cyber">
+          🔊 SFX: ON
+        </button>
+        <button id="btnNavQuickBorder" class="btn-cyber btn-cyber-secondary" style="padding: 8px 16px; font-size: 0.8rem;">
+          🔲 Sinden Border
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. HERO SECTION -->
+    <section id="hero" class="hero">
+      <div class="container">
+        <div class="hero-grid">
+          <div class="hero-content">
+            <div class="hero-tag">
+              <span class="hero-tag-pulse"></span>
+              COMPUTER VISION NATIVE • 1€ FILTER • ULTRA-LOW LATENCY
+            </div>
+
+            <h1 class="hero-title">
+              Smartphone <span>Lightgun Controller</span> Berpresisi Tinggi
+            </h1>
+
+            <p class="hero-desc">
+              Ubah smartphone Android Anda menjadi kontroler lightgun nirkabel berlatensi ultra-rendah (<strong style="color: var(--neon-cyan);">&lt;10ms</strong>) untuk PC Windows. Mengkloning cara kerja <strong>Sinden Lightgun</strong> dengan akselerasi C++ OpenCV NDK, Homography Perspective Mapping, dan filter anti-jitter <strong>One Euro Filter ($1€$)</strong>.
+            </p>
+
+            <div class="hero-actions">
+              <a href="#shooting-range" class="btn-cyber btn-cyber-primary" id="btnHeroPlay">
+                🎯 Uji Tembak (Shooting Range)
+              </a>
+              <a href="#calibrator" class="btn-cyber btn-cyber-secondary" id="btnHeroCalibrate">
+                🖥️ Kalibrasi Border Monitor
+              </a>
+              <a href="#downloads" class="btn-cyber btn-cyber-danger" id="btnHeroDownload">
+                📥 Unduh APK & Driver PC
+              </a>
+            </div>
+
+            <!-- Real-time Telemetry Bar -->
+            <div class="telemetry-strip">
+              <div class="telemetry-item">
+                <span class="telemetry-label">Input Latency</span>
+                <div class="telemetry-val cyan" id="heroLatencyVal">5.8 <span class="telemetry-unit">ms</span></div>
+              </div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Stream Rate</span>
+                <div class="telemetry-val green" id="heroFpsVal">120 <span class="telemetry-unit">FPS</span></div>
+              </div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Vision Tracking</span>
+                <div class="telemetry-val green">LOCKED <span class="telemetry-unit">4/4 CORNERS</span></div>
+              </div>
+              <div class="telemetry-item">
+                <span class="telemetry-label">Integrity Protocol</span>
+                <div class="telemetry-val pink">CRC8 <span class="telemetry-unit">DALLAS/MAXIM</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hero Graphic Showcase -->
+          <div class="hero-visual-card">
+            <img src="assets/hero_banner.jpg" alt="Futuristic Cyberpunk Lightgun Arcade Screen" class="hero-visual-img">
+            <div class="hero-hud-overlay">
+              <div class="hud-top-bar">
+                <span class="hud-badge">HUD: ACTIVE</span>
+                <span class="hud-badge" style="color: var(--neon-green); border-color: var(--neon-green);">BLE: STREAMING 120HZ</span>
+              </div>
+              <div class="hud-target-reticle"></div>
+              <div class="hud-bot-bar">
+                <span>COORD: X=32768 Y=24576</span>
+                <span style="color: var(--neon-cyan);">HOMOGRAPHY: 100% LOCK</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. SCREEN BORDER CALIBRATOR & FULLSCREEN SINDEN MODE -->
+    <section id="calibrator" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-badge">⚡ DYNAMIC SCREEN BORDER ENGINE</div>
+          <h2 class="section-title">Web Sinden Border Calibrator</h2>
+          <p class="section-subtitle">
+            Kustomisasi border layar monitor PC secara dinamis untuk mendeteksi kamera HP secara instan. Uji langsung di browser atau buka mode Fullscreen sebagai target deteksi kamera smartphone Anda.
+          </p>
+        </div>
+
+        <div class="calibrator-grid">
+          <!-- Monitor Preview Card -->
+          <div class="card-cyber">
+            <div class="card-header-flex">
+              <div class="card-title">🖥️ Monitor Canvas Simulator</div>
+              <span class="control-val-badge">16:9 NATIVE RATIO</span>
+            </div>
+
+            <div class="border-preview-container">
+              <img src="assets/hero_banner.jpg" alt="Simulated Game Display" class="border-preview-game">
+              <div id="borderOverlayPreview" class="border-preview-overlay"></div>
+              
+              <!-- 4 Corner Pins Detected by OpenCV approxPolyDP -->
+              <div class="corner-pin corner-tl">P1</div>
+              <div class="corner-pin corner-tr">P2</div>
+              <div class="corner-pin corner-bl">P3</div>
+              <div class="corner-pin corner-br">P4</div>
+
+              <div class="border-preview-content">
+                <div style="font-family: var(--font-mono); font-size: 0.82rem; color: var(--neon-green); margin-bottom: 6px;">
+                  [OPENCV approxPolyDP: QUADRILATERAL LOCKED]
+                </div>
+                <div style="font-size: 0.78rem; color: var(--text-secondary);">
+                  Arahkan kamera smartphone ke area border ini untuk kalibrasi instan
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+              <button id="btnLaunchFullscreen" class="btn-cyber btn-cyber-primary" style="flex: 1;">
+                🖥️ Masuk Mode Fullscreen Sinden Border
+              </button>
+            </div>
+          </div>
+
+          <!-- Controls & HSV Tuning Card -->
+          <div class="card-cyber">
+            <div class="card-header-flex">
+              <div class="card-title">🎨 Border & HSV Parameters</div>
+              <span class="control-val-badge" id="borderThicknessVal">14px</span>
+            </div>
+
+            <!-- Color Presets -->
+            <div class="control-group">
+              <label class="control-label">
+                <span>PILIHAN WARNA PRESET SINDEN</span>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Pilih warna kontras sesuai visual game</span>
+              </label>
+              <div class="color-presets-grid">
+                <button class="btn-preset cyan active" data-color="#00E5FF" id="btnPresetCyan">CYAN</button>
+                <button class="btn-preset green" data-color="#00FF44" id="btnPresetGreen">GREEN</button>
+                <button class="btn-preset magenta" data-color="#FF0066" id="btnPresetMagenta">MAGENTA</button>
+                <button class="btn-preset white" data-color="#FFFFFF" id="btnPresetWhite">WHITE</button>
+                <div class="color-picker-wrapper" title="Pilih Custom Hex Color">
+                  <input type="color" id="customColorPicker" class="color-picker-input" value="#00E5FF">
+                </div>
+              </div>
+            </div>
+
+            <!-- Border Thickness Slider -->
+            <div class="control-group">
+              <div class="control-label">
+                <span>KETEBALAN BORDER (THICKNESS)</span>
+                <span class="control-val-badge">2px - 36px</span>
+              </div>
+              <input type="range" id="borderThicknessSlider" class="range-slider" min="4" max="36" value="14">
+            </div>
+
+            <!-- OpenCV HSV Threshold Tuning -->
+            <div class="control-group">
+              <label class="control-label">
+                <span>TUNING SEGMENTASI HSV (OPENCV IN-RANGE)</span>
+                <span style="color: var(--neon-cyan); font-family: var(--font-mono); font-size: 0.75rem;">AUTO-SYNCED</span>
+              </label>
+              
+              <div class="hsv-grid">
+                <div>
+                  <div class="control-label" style="font-size: 0.75rem;">Hue Min: <span id="hMinVal">85</span></div>
+                  <input type="range" id="hMinSlider" class="range-slider" min="0" max="180" value="85">
+                </div>
+                <div>
+                  <div class="control-label" style="font-size: 0.75rem;">Hue Max: <span id="hMaxVal">105</span></div>
+                  <input type="range" id="hMaxSlider" class="range-slider" min="0" max="180" value="105">
+                </div>
+                <div>
+                  <div class="control-label" style="font-size: 0.75rem;">Sat Min: <span id="sMinVal">140</span></div>
+                  <input type="range" id="sMinSlider" class="range-slider" min="0" max="255" value="140">
+                </div>
+                <div>
+                  <div class="control-label" style="font-size: 0.75rem;">Sat Max: <span id="sMaxVal">255</span></div>
+                  <input type="range" id="sMaxSlider" class="range-slider" min="0" max="255" value="255">
+                </div>
+                <div>
+                  <div class="control-label" style="font-size: 0.75rem;">Val Min: <span id="vMinVal">120</span></div>
+                  <input type="range" id="vMinSlider" class="range-slider" min="0" max="255" value="120">
+                </div>
+                <div>
+                  <div class="control-label" style="font-size: 0.75rem;">Val Max: <span id="vMaxVal">255</span></div>
+                  <input type="range" id="vMaxSlider" class="range-slider" min="0" max="255" value="255">
+                </div>
+              </div>
+            </div>
+
+            <!-- Real-time Bluetooth Binary Packet Sync -->
+            <div class="control-group" style="margin-bottom: 0;">
+              <label class="control-label">
+                <span>SIMULASI PAKET BINER BLUETOOTH SYNC</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--neon-green);">CRC8: DALLAS/MAXIM</span>
+              </label>
+              <div class="packet-preview">
+                <div class="packet-hex-row" id="packetHexBytes">
+                  <!-- Injected via JavaScript -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. INTERACTIVE ARCADE SHOOTING RANGE MINI-GAME -->
+    <section id="shooting-range" class="section">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-badge">🎯 LIVE TEST BENCH & ARCADE RANGE</div>
+          <h2 class="section-title">Arcade Lightgun Shooting Range</h2>
+          <p class="section-subtitle">
+            Uji akurasi tembakan, kecepatan reaksi, dan deteksi <strong>Off-Screen Reload</strong> langsung di browser Anda menggunakan mouse atau kontroler lightgun.
+          </p>
+        </div>
+
+        <div class="range-container">
+          <!-- Top Stats HUD -->
+          <div class="range-hud-top">
+            <div class="range-stat">
+              <span class="range-stat-title">Skor Tempur</span>
+              <span class="range-stat-value" id="rangeScoreVal">0</span>
+            </div>
+            <div class="range-stat">
+              <span class="range-stat-title">Akurasi</span>
+              <span class="range-stat-value" id="rangeAccuracyVal" style="color: var(--neon-green);">100%</span>
+            </div>
+            <div class="range-stat">
+              <span class="range-stat-title">Combo Streak</span>
+              <span class="range-stat-value" id="rangeStreakVal" style="color: var(--neon-pink);">0x</span>
+            </div>
+            <div class="range-stat">
+              <span class="range-stat-title">Rata-rata Reaksi</span>
+              <span class="range-stat-value" id="rangeReactionVal" style="color: var(--neon-amber);">--- ms</span>
+            </div>
+          </div>
+
+          <!-- Canvas Interactive Stage -->
+          <div class="range-canvas-wrapper" id="canvasWrapper">
+            <canvas id="shootingCanvas"></canvas>
+
+            <!-- Reload Zone (Off-screen trigger indicator) -->
+            <div class="range-reload-zone" id="rangeReloadZone">
+              ⟳ OFF-SCREEN RELOAD (KLIK KANAN / R)
+            </div>
+
+            <!-- Ammo Visualizer (6 Rounds) -->
+            <div class="range-ammo-bar" id="rangeAmmoContainer">
+              <!-- Dynamically populated with 6 bullet icons -->
+            </div>
+          </div>
+
+          <!-- Controls Guide Footer -->
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--text-secondary); background: var(--bg-card); padding: 12px 20px; border-radius: var(--radius-sm); border: 1px solid var(--border-subtle);">
+            <div>
+              <strong style="color: var(--neon-cyan);">KONTROL TEMBAK:</strong> Klik Kiri = Tembak | Arahkan Kursor Keluar Canvas / Klik Kanan / Tombol <code style="color: var(--neon-pink);">R</code> = Reload Cepat!
+            </div>
+            <div style="font-family: var(--font-mono); color: var(--neon-green);">
+              [OFF-SCREEN RELOAD: AKTIF]
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. WEB BLUETOOTH & 16-BYTE PROTOCOL INSPECTOR -->
+    <section id="ble-inspector" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-badge">📡 HARDWARE PROTOCOL TELEMETRY</div>
+          <h2 class="section-title">Web Bluetooth & 16-Byte Inspector</h2>
+          <p class="section-subtitle">
+            Sambungkan ponsel cerdas langsung via Web Bluetooth API atau amati live stream data biner 16-byte pada 120Hz dengan validasi CRC8 Dallas/Maxim.
+          </p>
+        </div>
+
+        <div class="ble-grid">
+          <!-- Circular Radar HUD -->
+          <div class="card-cyber">
+            <div class="card-header-flex">
+              <div class="card-title">📡 Radar Coordinate HUD</div>
+              <span class="control-val-badge" id="bleStreamRate">120 Hz</span>
+            </div>
+
+            <div style="display: flex; justify-content: center; padding: 10px 0;">
+              <div class="radar-wrapper">
+                <div class="radar-ring radar-ring-1"></div>
+                <div class="radar-ring radar-ring-2"></div>
+                <div class="radar-ring radar-ring-3"></div>
+                <div class="radar-axis-x"></div>
+                <div class="radar-axis-y"></div>
+                <div class="radar-sweep"></div>
+                <div id="radarTargetBlip" class="radar-blip"></div>
+              </div>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; gap: 12px;">
+              <button id="btnBleConnect" class="btn-cyber btn-cyber-primary" style="flex: 1;">
+                📡 Hubungkan via Web Bluetooth
+              </button>
+              <button id="btnBleSimulateToggle" class="btn-cyber btn-cyber-secondary">
+                SIMULATION: 120HZ
+              </button>
+            </div>
+          </div>
+
+          <!-- 16-Byte Protocol Struct Table -->
+          <div class="card-cyber">
+            <div class="card-header-flex">
+              <div class="card-title">📐 LightgunInputPacket Struct (16-Byte)</div>
+              <span class="telemetry-val cyan" id="bleStatusBadge" style="font-size: 0.85rem;">SIMULATING (120HZ)</span>
+            </div>
+
+            <div class="packet-table-wrapper">
+              <table class="packet-table">
+                <thead>
+                  <tr>
+                    <th>Byte Offset</th>
+                    <th>Field Name</th>
+                    <th>Tipe Data</th>
+                    <th>Nilai Live</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>0x00</code></td>
+                    <td>Header Sync</td>
+                    <td>uint8_t</td>
+                    <td id="pktHeader" style="color: var(--neon-cyan);">0xAA</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x01</code></td>
+                    <td>Flags Status</td>
+                    <td>uint8_t</td>
+                    <td id="pktFlags" style="color: var(--neon-green);">0x01 (LOCKED)</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x02-0x03</code></td>
+                    <td>Pointer X</td>
+                    <td>uint16_t (0-65535)</td>
+                    <td id="pktPointerX">32768</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x04-0x05</code></td>
+                    <td>Pointer Y</td>
+                    <td>uint16_t (0-65535)</td>
+                    <td id="pktPointerY">24576</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x06-0x07</code></td>
+                    <td>Button Bitmask</td>
+                    <td>uint16_t (PSX Map)</td>
+                    <td id="pktButtons">0x0000</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x08-0x09</code></td>
+                    <td>Gyro Pitch</td>
+                    <td>int16_t</td>
+                    <td id="pktGyroPitch">0°</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x0A-0x0B</code></td>
+                    <td>Gyro Roll</td>
+                    <td>int16_t</td>
+                    <td id="pktGyroRoll">0°</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x0C-0x0D</code></td>
+                    <td>Timestamp</td>
+                    <td>uint16_t (ms)</td>
+                    <td id="pktTimestamp">1240 ms</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x0E</code></td>
+                    <td>Confidence</td>
+                    <td>uint8_t (0-100%)</td>
+                    <td id="pktConfidence" style="color: var(--neon-green);">98%</td>
+                  </tr>
+                  <tr>
+                    <td><code>0x0F</code></td>
+                    <td>CRC8 Checksum</td>
+                    <td>uint8_t (Poly 0x31)</td>
+                    <td id="pktChecksum" style="color: var(--neon-pink);">0x8C [OK]</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. EMULATOR CONFIGURATION & BUTTON MAPPER -->
+    <section id="emulators" class="section">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-badge">🎮 MULTI-EMULATOR COMPATIBILITY</div>
+          <h2 class="section-title">Konfigurasi Emulator Populer</h2>
+          <p class="section-subtitle">
+            Dukungan integrasi penuh untuk emulator arcade modern dan retro melalui emulasi driver ganda: <strong>Win32 SendInput Absolute Mouse</strong> dan <strong>ViGEmBus Gamepad (Xbox 360 / GunCon 2)</strong>.
+          </p>
+        </div>
+
+        <!-- Emulator Tabs -->
+        <div class="emulator-tabs">
+          <button class="emu-tab-btn active" data-emu="teknoparrot" id="tabTeknoparrot">Teknoparrot</button>
+          <button class="emu-tab-btn" data-emu="dolphin" id="tabDolphin">Dolphin (Wii)</button>
+          <button class="emu-tab-btn" data-emu="pcsx2" id="tabPcsx2">PCSX2 (GunCon 2)</button>
+          <button class="emu-tab-btn" data-emu="mame" id="tabMame">MAME Arcade</button>
+          <button class="emu-tab-btn" data-emu="model2" id="tabModel2">Model 2 / Model 3</button>
+        </div>
+
+        <div class="emu-guide-grid">
+          <!-- Guide & Steps -->
+          <div class="card-cyber">
+            <div class="card-header-flex">
+              <div class="card-title" id="emuGuideTitle">Teknoparrot (Arcade Modern)</div>
+              <span class="control-val-badge" id="emuGuideMode">Absolute Mouse Pointer</span>
+            </div>
+
+            <p id="emuGuideDesc" style="color: var(--text-secondary); margin-bottom: 20px;">
+              Ideal untuk arcade modern seperti House of the Dead Scarlet Dawn, Time Crisis 5, Transformers Human Alliance, Jurassic Park Arcade.
+            </p>
+
+            <h4 style="font-family: var(--font-display); font-size: 0.95rem; margin-bottom: 12px; color: var(--neon-cyan);">
+              📋 LANGKAH KONFIGURASI:
+            </h4>
+            <ol id="emuGuideSteps" style="padding-left: 20px; color: var(--text-secondary); line-height: 1.8; margin-bottom: 24px;">
+              <!-- Dynamically populated -->
+            </ol>
+
+            <h4 style="font-family: var(--font-display); font-size: 0.95rem; margin-bottom: 12px; color: var(--neon-green);">
+              💾 FILE KONFIGURASI / INI:
+            </h4>
+            <div class="code-box">
+              <button class="btn-copy" id="btnCopyConfigCode">SALIN</button>
+              <pre id="emuConfigCode"></pre>
+            </div>
+          </div>
+
+          <!-- PlayStation Action Mapping Visualizer -->
+          <div class="controller-map-card">
+            <div class="card-header-flex">
+              <div class="card-title">🔫 Pemetaan Tombol Lightgun</div>
+              <span class="control-val-badge">DUAL EMULATION</span>
+            </div>
+
+            <div class="gun-action-row">
+              <div class="gun-action-title">
+                <span>💥 Trigger (Pelatuk)</span>
+              </div>
+              <div class="gun-action-badge">Left Mouse Button / L2 Trigger</div>
+            </div>
+
+            <div class="gun-action-row">
+              <div class="gun-action-title">
+                <span>🔄 Off-Screen Aim / Reload</span>
+              </div>
+              <div class="gun-action-badge" style="color: var(--neon-pink); background: rgba(255, 0, 110, 0.15);">Right Mouse Button / R2 Trigger</div>
+            </div>
+
+            <div class="gun-action-row">
+              <div class="gun-action-title">
+                <span>🛡️ Action / Pedal Tembak</span>
+              </div>
+              <div class="gun-action-badge">Cross Button (X) / Spacebar</div>
+            </div>
+
+            <div class="gun-action-row">
+              <div class="gun-action-title">
+                <span>💣 Granat / Sub-Weapon</span>
+              </div>
+              <div class="gun-action-badge">Circle Button (O) / Middle Mouse</div>
+            </div>
+
+            <div class="gun-action-row">
+              <div class="gun-action-title">
+                <span>⚙️ Start / Pause Menu</span>
+              </div>
+              <div class="gun-action-badge">Start / Options Button</div>
+            </div>
+
+            <div style="margin-top: 24px; padding: 14px; background: rgba(0, 229, 255, 0.05); border-radius: var(--radius-sm); border: 1px solid var(--border-cyan); font-size: 0.85rem; color: var(--text-secondary);">
+              💡 <strong>Tips Anti-Jitter:</strong> One Euro Filter ($1€$) otomatis meredam tremor tangan saat Anda membidik secara diam, namun memberikan nol lag ($0\,\text{ms}$) saat gerakan tembakan menyentak cepat (<em>flick shot</em>).
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. DOWNLOADS & QUICK START -->
+    <section id="downloads" class="section section-alt">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-badge">📥 INSTALLATION & RELEASES</div>
+          <h2 class="section-title">Pusat Unduhan & Quick Start</h2>
+          <p class="section-subtitle">
+            Dapatkan aplikasi smartphone Android (APK) dan aplikasi PC Server Windows untuk memulai sesi permainan lightgun Anda.
+          </p>
+        </div>
+
+        <div class="downloads-grid">
+          <!-- Android APK Card -->
+          <div class="dl-card">
+            <div class="dl-card-icon">📱</div>
+            <div class="dl-card-title">CameraGun Android APK</div>
+            <div class="dl-card-ver">v4.13 Beta • NDK r25c</div>
+            <p class="dl-card-desc">
+              Aplikasi kamera smartphone dengan native pipeline OpenCV C++, BLE GATT Server, dan PlayStation HUD canvas.
+            </p>
+            <a href="https://github.com/LazenFajri/CameraGun/releases" target="_blank" rel="noopener noreferrer" class="btn-cyber btn-cyber-primary" style="width: 100%;">
+              Unduh APK (.apk)
+            </a>
+          </div>
+
+          <!-- PC Server Card -->
+          <div class="dl-card">
+            <div class="dl-card-icon">💻</div>
+            <div class="dl-card-title">PC Server WPF Driver</div>
+            <div class="dl-card-ver">.NET 8.0 • Windows 10/11</div>
+            <p class="dl-card-desc">
+              Dashboard Cyberpunk WPF, Direct2D transparent screen border, Win32 SendInput, dan Bluetooth receiver 120Hz.
+            </p>
+            <a href="https://github.com/LazenFajri/CameraGun/releases" target="_blank" rel="noopener noreferrer" class="btn-cyber btn-cyber-secondary" style="width: 100%;">
+              Unduh PC Server (.exe)
+            </a>
+          </div>
+
+          <!-- ViGEmBus Driver Card -->
+          <div class="dl-card">
+            <div class="dl-card-icon">🎮</div>
+            <div class="dl-card-title">ViGEmBus Gamepad Driver</div>
+            <div class="dl-card-ver">Official Nefarius Release</div>
+            <p class="dl-card-desc">
+              Driver virtual controller untuk mengemulasikan gamepad Xbox 360 / DualShock 4 pada PCSX2, RPCS3, dan RetroArch.
+            </p>
+            <a href="https://github.com/nefarius/ViGEmBus/releases" target="_blank" rel="noopener noreferrer" class="btn-cyber btn-cyber-danger" style="width: 100%;">
+              Unduh ViGEmBus
+            </a>
+          </div>
+        </div>
+
+        <!-- Terminal Quick Start Command -->
+        <div class="card-cyber">
+          <div class="card-header-flex">
+            <div class="card-title">⚡ Perintah Kompilasi & Jalankan Cepat (PowerShell)</div>
+            <button class="btn-cyber btn-cyber-secondary btn-copy-command" data-copy="cd d:\CameraGun\PC_Server; dotnet run -c Release" style="padding: 6px 14px; font-size: 0.75rem;">
+              SALIN PERINTAH
+            </button>
+          </div>
+          <div class="code-box">
+            <pre># Jalankan PC Server Dashboard Cyberpunk
+cd d:\CameraGun\PC_Server
+dotnet run -c Release</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Fullscreen Sinden Border Mode Overlay -->
+  <div id="fullscreenBorderOverlay" class="fullscreen-border-overlay">
+    <div id="fullscreenBorderLine" class="fullscreen-border-line"></div>
+    <div class="fullscreen-helper">
+      <div style="font-family: var(--font-display); font-size: 1.2rem; color: var(--neon-cyan); margin-bottom: 8px;">
+        🖥️ MODE FULLSCREEN SINDEN BORDER AKTIF
+      </div>
+      <p style="font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 16px;">
+        Arahkan kamera smartphone ke monitor Anda. Layar ini telah diubah menjadi border Sinden murni berlatar belakang hitam sempurna.
+      </p>
+      <button id="btnExitFullscreen" class="btn-cyber btn-cyber-danger">
+        Keluar Mode Fullscreen (ESC)
+      </button>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="footer-brand-title">CameraGun AI</div>
+          <p class="footer-text">
+            Sistem Lightgun nirkabel cerdas berbasis Computer Vision OpenCV, Sinden Border Homography, dan One Euro Anti-Jitter Filter untuk Windows Gaming & Retro Emulation.
+          </p>
+        </div>
+        <div>
+          <div class="footer-col-title">Navigasi Cepat</div>
+          <ul class="footer-links">
+            <li><a href="#hero" class="footer-link">Beranda</a></li>
+            <li><a href="#calibrator" class="footer-link">Sinden Calibrator</a></li>
+            <li><a href="#shooting-range" class="footer-link">Shooting Range</a></li>
+            <li><a href="#ble-inspector" class="footer-link">BLE Telemetry</a></li>
+            <li><a href="#emulators" class="footer-link">Emulator Setup</a></li>
+          </ul>
+        </div>
+        <div>
+          <div class="footer-col-title">Emulator yang Didukung</div>
+          <ul class="footer-links">
+            <li><a href="#emulators" class="footer-link">Teknoparrot Arcade</a></li>
+            <li><a href="#emulators" class="footer-link">Dolphin (Wii Gun)</a></li>
+            <li><a href="#emulators" class="footer-link">PCSX2 (GunCon 2)</a></li>
+            <li><a href="#emulators" class="footer-link">MAME Arcade Clones</a></li>
+            <li><a href="#emulators" class="footer-link">Sega Model 2 / Model 3</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bot">
+        <span>&copy; 2026 CameraGun AI & GKHeart Lightgun Project. Hak Cipta Dilindungi.</span>
+        <span style="font-family: var(--font-mono); color: var(--neon-cyan);">Ultra-Low Latency &lt;10ms Pipeline</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/audio.js"></script>
+  <script src="js/border-calibrator.js"></script>
+  <script src="js/shooting-range.js"></script>
+  <script src="js/ble-inspector.js"></script>
+  <script src="js/emulator-guide.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
