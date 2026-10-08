@@ -228,7 +228,7 @@ namespace CameraGun.Server
                         }
                         else
                         {
-                            SetCursorPos(pixelX, pixelY);
+                            InjectAbsoluteMouse(pixelX, pixelY);
                         }
                     }
                     else if (isGyroOffscreen && !_lastGyroOffscreenP1)
@@ -238,7 +238,7 @@ namespace CameraGun.Server
                         // Klik kanan sudah ditangani oleh InjectMouseButtons di atas
                         int offX = _targetScreen.Bounds.Right - 10;
                         int offY = _targetScreen.Bounds.Bottom - 10;
-                        SetCursorPos(offX, offY);
+                        InjectAbsoluteMouse(offX, offY);
                     }
                 }
 
@@ -320,6 +320,33 @@ namespace CameraGun.Server
 
             _prevAaaX = pixelX;
             _prevAaaY = pixelY;
+        }
+
+        /// <summary>
+        /// Injeksi mouse absolut yang menggerakkan kursor OS sekaligus mengirim stream event MOUSEEVENTF_MOVE.
+        /// Ini memastikan game (DirectX, SDL3, TeknoParrot) mendeteksi pergerakan kursor secara terus-menerus
+        /// bahkan saat pemain tidak sedang menekan tombol tembak (tidak flicker).
+        /// </summary>
+        private void InjectAbsoluteMouse(int pixelX, int pixelY)
+        {
+            // 1. Pixel-perfect cursor placement via Win32 API
+            SetCursorPos(pixelX, pixelY);
+
+            // 2. Dispatch real Windows input stream event (MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE)
+            int vLeft = _targetScreen.Bounds.Left;
+            int vTop = _targetScreen.Bounds.Top;
+            int vWidth = Math.Max(1, _targetScreen.Bounds.Width);
+            int vHeight = Math.Max(1, _targetScreen.Bounds.Height);
+
+            int absX = (int)Math.Round(((double)(pixelX - vLeft) * 65535.0) / vWidth);
+            int absY = (int)Math.Round(((double)(pixelY - vTop) * 65535.0) / vHeight);
+
+            INPUT[] inputs = new INPUT[1];
+            inputs[0].type = INPUT_MOUSE;
+            inputs[0].u.mi.dx = Math.Clamp(absX, 0, 65535);
+            inputs[0].u.mi.dy = Math.Clamp(absY, 0, 65535);
+            inputs[0].u.mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+            SendInput(1, inputs, Marshal.SizeOf<INPUT>());
         }
 
         /// <summary>
