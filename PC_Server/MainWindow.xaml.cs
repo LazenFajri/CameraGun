@@ -642,6 +642,12 @@ namespace CameraGun.Server
             if (txtBetaVal != null) txtBetaVal.Text = e.NewValue.ToString("F3");
         }
 
+        private void SliderSensitivity_Changed(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (txtSensitivityVal != null) txtSensitivityVal.Text = $"{e.NewValue:F2}x";
+            if (_inputInjection != null) _inputInjection.GyroSensitivity = e.NewValue;
+        }
+
         private void EmulatorProfile_Changed(object sender, RoutedEventArgs e)
         {
             if (sender is System.Windows.Controls.RadioButton rb && _inputInjection != null)

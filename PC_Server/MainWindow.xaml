@@ -472,7 +472,14 @@
                         </TextBlock>
                         <Slider x:Name="sliderBeta" Style="{StaticResource CyberSlider}"
                                 Minimum="0.001" Maximum="0.5" Value="0.05"
-                                ValueChanged="SliderBeta_Changed" Margin="0,0,0,14"/>
+                                ValueChanged="SliderBeta_Changed" Margin="0,0,0,8"/>
+
+                        <TextBlock Style="{StaticResource ParamLabel}">
+                            <Run Text="GYRO SENSITIVITY: "/><Run x:Name="txtSensitivityVal" Text="0.60x" Foreground="{StaticResource AccentCyan}"/>
+                        </TextBlock>
+                        <Slider x:Name="sliderSensitivity" Style="{StaticResource CyberSlider}"
+                                Minimum="0.10" Maximum="2.00" Value="0.60" SmallChange="0.05" LargeChange="0.10"
+                                ValueChanged="SliderSensitivity_Changed" Margin="0,0,0,14"/>
 
                         <TextBlock Text="EMULATOR PROFILE" Style="{StaticResource ParamLabel}" Margin="0,4,0,6"/>
                         <StackPanel x:Name="panelProfiles">

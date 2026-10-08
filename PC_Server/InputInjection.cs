@@ -104,6 +104,8 @@ namespace CameraGun.Server
         public EmulatorProfile CurrentProfile { get; set; } = EmulatorProfile.Teknoparrot;
         public bool IsViGEmConnected => _isVigemAvailable;
 
+        public double GyroSensitivity { get; set; } = 0.60;
+
         // Player 1 Coordinates & State
         public int LastPixelX_P1 { get; private set; } = 0;
         public int LastPixelY_P1 { get; private set; } = 0;
@@ -179,9 +181,15 @@ namespace CameraGun.Server
             bool isButtonReload = (pkt.ButtonMask & (ushort)LightgunButtons.Reload) != 0;
             bool isAnyReload = isGyroOffscreen || isButtonReload;
 
-            // Compute exact pixel coordinate on the selected monitor
-            double normX = pkt.PointerX / 65535.0;
-            double normY = pkt.PointerY / 65535.0;
+            // Compute exact pixel coordinate on the selected monitor scaled by GyroSensitivity around center
+            double rawX = pkt.PointerX / 65535.0;
+            double rawY = pkt.PointerY / 65535.0;
+
+            double centeredX = (rawX - 0.5) * GyroSensitivity;
+            double centeredY = (rawY - 0.5) * GyroSensitivity;
+
+            double normX = Math.Clamp(0.5 + centeredX, 0.0, 1.0);
+            double normY = Math.Clamp(0.5 + centeredY, 0.0, 1.0);
 
             int pixelX = _targetScreen.Bounds.Left + (int)(normX * _targetScreen.Bounds.Width);
             int pixelY = _targetScreen.Bounds.Top + (int)(normY * _targetScreen.Bounds.Height);
@@ -444,8 +452,8 @@ namespace CameraGun.Server
             // Analog Stick Mapping (GunCon 2 / GunCon 3)
             if (isLocked)
             {
-                short stickX = (short)(pkt.PointerX - 32768);
-                short stickY = (short)(32768 - pkt.PointerY);
+                short stickX = (short)Math.Clamp((pkt.PointerX - 32768) * GyroSensitivity, -32768, 32767);
+                short stickY = (short)Math.Clamp((32768 - pkt.PointerY) * GyroSensitivity, -32768, 32767);
 
                 controller.SetAxisValue(Xbox360Axis.LeftThumbX, stickX);
                 controller.SetAxisValue(Xbox360Axis.LeftThumbY, stickY);
