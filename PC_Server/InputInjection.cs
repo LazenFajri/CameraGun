@@ -85,6 +85,27 @@ namespace CameraGun.Server
 
         [DllImport("user32.dll")]
         private static extern bool SetCursorPos(int X, int Y);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
         #endregion
 
         private ViGEmClient? _vigemClient;
@@ -99,8 +120,14 @@ namespace CameraGun.Server
         private bool _lastAnyReloadP2 = false;
         private bool _lastGyroOffscreenP1 = false;
 
+        private IntPtr _lastForegroundHwnd = IntPtr.Zero;
+        private uint _lastForegroundCheckTick = 0;
+        private bool _cachedIsGame = false;
+        private bool _lastShouldInjectMouse = false;
+
         public bool IsEnabled { get; set; } = true;
-        public bool IsMouseEnabled { get; set; } = true;
+        public bool IsMouseEnabled { get; set; } = false; // Default: False (F8 = FORCE ON). Saat False, otomatis aktif hanya di Game!
+        public bool AutoAimInGame { get; set; } = true;   // Otomatis deteksi HOTD4/TeknoParrot/emulator saat F8 OFF
         public EmulatorProfile CurrentProfile { get; set; } = EmulatorProfile.Teknoparrot;
         public bool IsViGEmConnected => _isVigemAvailable;
 
@@ -219,38 +246,58 @@ namespace CameraGun.Server
                 LastPixelY_P1 = pixelY;
                 IsLastFiring_P1 = isFiring;
 
-                // === 1. MOUSE BUTTON CLICKS (SELALU AKTIF, tidak tergantung IsMouseEnabled) ===
-                // Ini agar tombol Trigger, Reload, Alt-Fire di APK HP selalu berfungsi
-                // bahkan saat mouse injection OFF (user sedang setting di TeknoParrot)
-                InjectMouseButtons(pkt.ButtonMask, isAnyReload);
+                // === 1. SMART MOUSE INJECTION ===
+                // Aktif jika:
+                // (a) IsMouseEnabled == true (F8 FORCE ON manual)
+                // ATAU
+                // (b) AutoAimInGame == true dan jendela game aktif di foreground (HOTD4, TeknoParrot, dll.)
+                // Saat user di Windows Desktop / File Explorer dengan F8 OFF, kursor mouse fisik tetap 100% aman!
+                bool shouldInjectMouse = IsMouseEnabled || (AutoAimInGame && IsGameActiveForeground());
 
-                // === 2. MOUSE CURSOR POSITION (hanya aktif saat IsMouseEnabled ON) ===
-                if (IsMouseEnabled)
+                if (!shouldInjectMouse && _lastShouldInjectMouse)
                 {
+                    // User baru saja Alt-Tab keluar dari game ke Desktop: lepas klik mouse & reset delta
+                    ReleaseMouseInputs();
+                    _prevAaaX = -1;
+                    _prevAaaY = -1;
+                }
+                else if (shouldInjectMouse && !_lastShouldInjectMouse)
+                {
+                    // User baru saja fokus ke jendela game: reset delta agar kursor tidak lompat drastis
+                    _prevAaaX = -1;
+                    _prevAaaY = -1;
+                }
+                _lastShouldInjectMouse = shouldInjectMouse;
+
+                if (shouldInjectMouse)
+                {
+                    // Kirim klik mouse (Trigger = Left Click, Reload = Right Click / Offscreen)
+                    InjectMouseButtons(pkt.ButtonMask, isAnyReload);
+
+                    // Kirim pergerakan kursor & delta
                     if (isLocked)
                     {
-                        // HP mengarah ke layar → pindahkan kursor ke titik bidik
-                        if (CurrentProfile == EmulatorProfile.AaaPcGame)
+                        // Di mode Teknoparrot dan AAA PC Game, selalu kirim delta relatif agar game Lindbergh (HOTD4) bergerak mulus
+                        if (CurrentProfile == EmulatorProfile.AaaPcGame || CurrentProfile == EmulatorProfile.Teknoparrot)
                         {
                             InjectAaaRelativeMouse(pixelX, pixelY);
                         }
-                        else
+                        
+                        // Kirim juga posisi absolut untuk emulator yang membutuhkan kursor layar
+                        if (CurrentProfile != EmulatorProfile.AaaPcGame)
                         {
                             InjectAbsoluteMouse(pixelX, pixelY);
                         }
                     }
                     else if (isGyroOffscreen && !_lastGyroOffscreenP1)
                     {
-                        // HP miring ke bawah (GYRO off-screen) → geser kursor ke pojok layar
-                        // HANYA gyro, bukan tombol RELOAD (agar tombol RELOAD tidak menggeser kursor)
-                        // Klik kanan sudah ditangani oleh InjectMouseButtons di atas
                         int offX = _targetScreen.Bounds.Right - 10;
                         int offY = _targetScreen.Bounds.Bottom - 10;
                         InjectAbsoluteMouse(offX, offY);
                     }
                 }
 
-                // === 3. KEYBOARD HOTKEYS ('1' = Start, '5' = Coin) ===
+                // === 2. KEYBOARD HOTKEYS ('1' = Start, '5' = Coin) ===
                 InjectKeyboardActionsP1(pkt.ButtonMask, isAnyReload);
 
                 // === 4. GAMEPAD INJECTION (ViGEmBus Xbox 360 virtual controller) ===
@@ -460,6 +507,154 @@ namespace CameraGun.Server
             }
 
             controller.SubmitReport();
+        }
+
+        /// <summary>
+        /// Melepaskan semua tombol mouse (Left, Right, Middle) agar tidak ada klik yang tertinggal/stuck
+        /// saat beralih antara game dan desktop.
+        /// </summary>
+        public void ReleaseMouseInputs()
+        {
+            try
+            {
+                INPUT[] mouseInputs = new INPUT[3];
+                mouseInputs[0].type = INPUT_MOUSE;
+                mouseInputs[0].u.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+                mouseInputs[1].type = INPUT_MOUSE;
+                mouseInputs[1].u.mi.dwFlags = MOUSEEVENTF_RIGHTUP;
+                mouseInputs[2].type = INPUT_MOUSE;
+                mouseInputs[2].u.mi.dwFlags = MOUSEEVENTF_MIDDLEUP;
+                SendInput(3, mouseInputs, Marshal.SizeOf<INPUT>());
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// Mengecek apakah jendela aktif di foreground adalah jendela game/emulator (HOTD4, TeknoParrot, Lindbergh, Dolphin, dll.)
+        /// Di-throttle dan di-cache per window handle agar tidak membebani CPU di 100Hz.
+        /// </summary>
+        public bool IsGameActiveForeground()
+        {
+            IntPtr hWnd = GetForegroundWindow();
+            if (hWnd == IntPtr.Zero) return false;
+
+            uint now = (uint)Environment.TickCount;
+            if (hWnd == _lastForegroundHwnd && (now - _lastForegroundCheckTick) < 150)
+            {
+                return _cachedIsGame;
+            }
+
+            _lastForegroundHwnd = hWnd;
+            _lastForegroundCheckTick = now;
+
+            try
+            {
+                GetWindowThreadProcessId(hWnd, out uint pid);
+                if (pid == 0)
+                {
+                    _cachedIsGame = false;
+                    return false;
+                }
+
+                uint currentPid = (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
+                if (pid == currentPid)
+                {
+                    _cachedIsGame = false;
+                    return false;
+                }
+
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                string procName = proc.ProcessName.ToLowerInvariant();
+
+                // 1. Blacklist aplikasi non-game Windows desktop / system / browser / editor
+                if (procName == "explorer" || procName == "taskmgr" || procName == "devenv" ||
+                    procName == "cmd" || procName == "powershell" || procName == "pwsh" ||
+                    procName == "code" || procName == "shellexperiencehost" || procName == "searchhost" ||
+                    procName == "applicationframehost" || procName == "startmenuexperiencehost" ||
+                    procName == "systemsettings" || procName == "textinputhost" || procName == "lockapp" ||
+                    procName == "chrome" || procName == "msedge" || procName == "firefox" ||
+                    procName == "brave" || procName == "opera" || procName == "vivaldi" ||
+                    procName == "discord" || procName == "slack" || procName == "teams" ||
+                    procName == "spotify")
+                {
+                    _cachedIsGame = false;
+                    return false;
+                }
+
+                // 2. Cek judul window
+                var sb = new System.Text.StringBuilder(256);
+                GetWindowText(hWnd, sb, sb.Capacity);
+                string title = sb.ToString().ToLowerInvariant();
+
+                // 3. Signature game & emulator loader
+                if (procName.Contains("budgie") ||         // BudgieLoader (HOTD4 / Lindbergh TeknoParrot)
+                    procName.Contains("elf") ||            // elf.exe (Linux ELF runner)
+                    procName.Contains("teknoparrot") ||    // TeknoParrot UI / loader
+                    procName.Contains("openparrot") ||     // OpenParrot
+                    procName.Contains("tekno") ||          // TeknoM2, TeknoMacaw, TeknoS11, dll.
+                    procName.Contains("parrot") ||         // Parrot loader
+                    procName.Contains("hotd") ||           // House of The Dead
+                    procName.Contains("hod4") ||           // HOD4
+                    procName.Contains("lindbergh") ||      // Sega Lindbergh
+                    procName.Contains("dolphin") ||        // Dolphin
+                    procName.Contains("pcsx2") ||          // PCSX2
+                    procName.Contains("rpcs3") ||          // RPCS3
+                    procName.Contains("mame") ||           // MAME
+                    procName.Contains("retroarch") ||      // RetroArch
+                    procName.Contains("duckstation") ||    // DuckStation
+                    procName.Contains("flycast") ||        // Flycast
+                    procName.Contains("supermodel") ||     // Model 3
+                    procName.Contains("model2") ||         // Model 2
+                    procName.Contains("demul") ||          // Demul
+                    procName.Contains("cxbx") ||           // Cxbx
+                    procName.Contains("play") ||           // Play!
+                    title.Contains("the house of the dead") ||
+                    title.Contains("house of the dead") ||
+                    title.Contains("hotd") ||
+                    title.Contains("teknoparrot") ||
+                    title.Contains("lindbergh") ||
+                    title.Contains("sega") ||
+                    title.Contains("arcade") ||
+                    title.Contains("mame") ||
+                    title.Contains("dolphin") ||
+                    title.Contains("pcsx2") ||
+                    title.Contains("rpcs3") ||
+                    title.Contains("retroarch"))
+                {
+                    _cachedIsGame = true;
+                    return true;
+                }
+
+                // 4. AAA PC Game mode: semua aplikasi non-blacklist dianggap game
+                if (CurrentProfile == EmulatorProfile.AaaPcGame)
+                {
+                    _cachedIsGame = true;
+                    return true;
+                }
+
+                // 5. Fullscreen window detection: jika ukuran jendela menutupi layar target
+                if (GetWindowRect(hWnd, out RECT rect))
+                {
+                    int screenWidth = _targetScreen.Bounds.Width;
+                    int screenHeight = _targetScreen.Bounds.Height;
+                    if (rect.Left <= _targetScreen.Bounds.Left &&
+                        rect.Top <= _targetScreen.Bounds.Top &&
+                        (rect.Right - rect.Left) >= screenWidth &&
+                        (rect.Bottom - rect.Top) >= screenHeight)
+                    {
+                        _cachedIsGame = true;
+                        return true;
+                    }
+                }
+
+                _cachedIsGame = false;
+            }
+            catch
+            {
+                _cachedIsGame = false;
+            }
+
+            return _cachedIsGame;
         }
 
         /// <summary>

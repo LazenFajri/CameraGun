@@ -111,32 +111,32 @@ namespace CameraGun.Server
         {
             if (_inputInjection == null) return;
             _inputInjection.IsMouseEnabled = !_inputInjection.IsMouseEnabled;
-            bool mouseActive = _inputInjection.IsMouseEnabled;
+            bool forceOn = _inputInjection.IsMouseEnabled;
 
-            if (mouseActive)
+            if (forceOn)
             {
-                txtInputStatus.Text = "MOUSE: ON";
+                txtInputStatus.Text = "MOUSE: FORCE ON";
                 txtInputStatus.Foreground = FindResource("AccentGreen") as System.Windows.Media.Brush;
                 badgeInputF8.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
                 if (btnToggleInput != null)
                 {
-                    btnToggleInput.Content = "🟢  MOUSE INJECTION: ON (F8)";
+                    btnToggleInput.Content = "🟢  MOUSE: FORCE ON (F8)";
                     btnToggleInput.BorderBrush = FindResource("AccentGreen") as System.Windows.Media.Brush;
                 }
-                txtStatusMsg.Text = "Mouse injection ENABLED (F8)";
+                txtStatusMsg.Text = "Mouse injection FORCED ON (F8) — Aktif di seluruh desktop & game";
             }
             else
             {
                 _inputInjection.ReleaseAllInputs();
-                txtInputStatus.Text = "MOUSE: OFF";
-                txtInputStatus.Foreground = FindResource("AccentOrange") as System.Windows.Media.Brush;
-                badgeInputF8.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                txtInputStatus.Text = "MOUSE: AUTO GAME";
+                txtInputStatus.Foreground = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                badgeInputF8.BorderBrush = FindResource("AccentCyan") as System.Windows.Media.Brush;
                 if (btnToggleInput != null)
                 {
-                    btnToggleInput.Content = "⏸️  MOUSE INJECTION: OFF (F8)";
-                    btnToggleInput.BorderBrush = FindResource("AccentOrange") as System.Windows.Media.Brush;
+                    btnToggleInput.Content = "🎯  MOUSE: AUTO GAME (F8)";
+                    btnToggleInput.BorderBrush = FindResource("AccentCyan") as System.Windows.Media.Brush;
                 }
-                txtStatusMsg.Text = "Mouse injection DISABLED (F8) — Kursor mouse aman, Gamepad & Preview tetap aktif";
+                txtStatusMsg.Text = "Mouse: AUTO GAME (F8) — Crosshair otomatis aktif di Game (HOTD4/TeknoParrot), desktop aman!";
             }
         }
 
@@ -175,6 +175,17 @@ namespace CameraGun.Server
             try
             {
                 _inputInjection = new InputInjection();
+                _inputInjection.IsMouseEnabled = false; // Default: AUTO GAME mode
+
+                txtInputStatus.Text = "MOUSE: AUTO GAME";
+                txtInputStatus.Foreground = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                badgeInputF8.BorderBrush = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                if (btnToggleInput != null)
+                {
+                    btnToggleInput.Content = "🎯  MOUSE: AUTO GAME (F8)";
+                    btnToggleInput.BorderBrush = FindResource("AccentCyan") as System.Windows.Media.Brush;
+                }
+
                 if (_inputInjection.IsViGEmConnected)
                 {
                     txtVigemStatus.Text = "ViGEm: ✓ OK";

@@ -202,10 +202,10 @@
                         </Border>
 
                         <Border x:Name="badgeInputF8" Margin="8,0,0,0" CornerRadius="10" Padding="10,3" VerticalAlignment="Center"
-                                Background="#1A2138" BorderBrush="{StaticResource AccentGreen}" BorderThickness="1"
+                                Background="#1A2138" BorderBrush="{StaticResource AccentCyan}" BorderThickness="1"
                                 Cursor="Hand" MouseLeftButtonDown="BadgeInputF8_MouseDown"
-                                ToolTip="Klik atau tekan F8 di keyboard untuk On / Off mouse injection">
-                            <TextBlock x:Name="txtInputStatus" Text="MOUSE: ON" FontSize="10" Foreground="{StaticResource AccentGreen}" FontWeight="SemiBold"/>
+                                ToolTip="Klik atau tekan F8 di keyboard untuk Toggle AUTO GAME / FORCE ON mouse injection">
+                            <TextBlock x:Name="txtInputStatus" Text="MOUSE: AUTO GAME" FontSize="10" Foreground="{StaticResource AccentCyan}" FontWeight="SemiBold"/>
                         </Border>
 
                         <Border x:Name="badgeWifi" Margin="8,0,0,0" CornerRadius="10" Padding="10,3" VerticalAlignment="Center"
@@ -499,9 +499,9 @@
                         </StackPanel>
 
                         <Button x:Name="btnToggleInput" Style="{StaticResource CyberButton}"
-                                Content="🟢  MOUSE INJECTION: ON (F8)" Click="BtnToggleInput_Click"
-                                ToolTip="Matikan / nyalakan kontrol kursor mouse agar bebas klik saat setting emulator"
-                                HorizontalAlignment="Stretch" Margin="0,8,0,4" BorderBrush="{StaticResource AccentGreen}"/>
+                                Content="🎯  MOUSE: AUTO GAME (F8)" Click="BtnToggleInput_Click"
+                                ToolTip="Mode AUTO GAME: Crosshair otomatis aktif di Game (HOTD4/TeknoParrot) dan desktop aman. Tekan F8 untuk FORCE ON."
+                                HorizontalAlignment="Stretch" Margin="0,8,0,4" BorderBrush="{StaticResource AccentCyan}"/>
 
                         <Button x:Name="btnShowQr" Style="{StaticResource CyberButton}"
                                 Content="📶  WI-FI / SCAN QR CODE" Click="BtnShowQr_Click"
